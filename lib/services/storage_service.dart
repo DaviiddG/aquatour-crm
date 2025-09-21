@@ -93,7 +93,7 @@ class StorageService {
             email: 'davidg@aquatour.com',
             rol: UserRole.administrador,
             tipoDocumento: 'CC',
-            numDocumento: '12345678',
+            numDocumento: '1017924927',
             fechaNacimiento: DateTime(2005, 9, 7), // 07-09-2005
             genero: 'Masculino',
             telefono: '3233053830',
