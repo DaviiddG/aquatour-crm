@@ -97,8 +97,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 16),
                         // Logo de AquaTour
                         Image.asset(
-                          'assets/images/logo.png',
-                          height: 120,
+                          'assets/images/aqua-tour.png',
+                          height: 150,
                           fit: BoxFit.contain,
                         ),
                         const SizedBox(height: 8),
