@@ -94,7 +94,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+                        // Logo de AquaTour
+                        Image.asset(
+                          'assets/images/logo.png',
+                          height: 120,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 8),
                         Text(
                           'AquaTour CRM',
                           textAlign: TextAlign.center,
