@@ -6,7 +6,8 @@
       "use": "@vercel/static"
     }
   ],
-  "buildCommand": "./vercel-build.sh",
+  "buildCommand": "flutter pub get && flutter build web --release --web-renderer html --csp",
+  "installCommand": "curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.1-stable.tar.xz | tar xJ",
   "routes": [
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/index.html" }
