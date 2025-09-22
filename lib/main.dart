@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/login_screen.dart';
-import 'package:aquatour/services/storage.dart';
+import 'package:aquatour/services/storage_service.dart';
 import 'dart:html' as html;
 
 void main() async {
