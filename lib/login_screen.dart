@@ -121,48 +121,57 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 32),
-                        TextFormField(
-                          controller: _controladorUsuario,
-                          decoration: InputDecoration(
-                            labelText: 'Usuario o correo',
-                            prefixIcon: const Icon(Icons.person_outline),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                        Semantics(
+                          label: 'Usuario o correo',
+                          child: TextFormField(
+                            controller: _controladorUsuario,
+                            decoration: InputDecoration(
+                              labelText: 'Usuario o correo',
+                              prefixIcon: const Icon(Icons.person_outline),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
+                            validator: RequiredValidator(errorText: 'El correo o usuario es obligatorio').call,
                           ),
-                          validator: RequiredValidator(errorText: 'El correo o usuario es obligatorio').call,
                         ),
                         const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _controladorClave,
-                          decoration: InputDecoration(
-                            labelText: 'Contraseña',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _ocultarClave ? Icons.visibility_off : Icons.visibility,
+                        Semantics(
+                          label: 'Contraseña',
+                          child: TextFormField(
+                            controller: _controladorClave,
+                            decoration: InputDecoration(
+                              labelText: 'Contraseña',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _ocultarClave ? Icons.visibility_off : Icons.visibility,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _ocultarClave = !_ocultarClave;
+                                  });
+                                },
                               ),
-                              onPressed: () {
-                                setState(() {
-                                  _ocultarClave = !_ocultarClave;
-                                });
-                              },
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                            obscureText: _ocultarClave,
+                            validator: MinLengthValidator(6,
+                                    errorText: 'La contraseña debe tener al menos 6 caracteres').call,
                           ),
-                          obscureText: _ocultarClave,
-                          validator: MinLengthValidator(6,
-                                  errorText: 'La contraseña debe tener al menos 6 caracteres').call,
                         ),
                         const SizedBox(height: 32),
                         _isLoading
                             ? const Center(child: CircularProgressIndicator())
-                            : CustomButton(
-                                text: 'Iniciar Sesión',
-                                onPressed: _iniciarSesion,
-                                color: const Color(0xFF4C39A6),
+                            : Semantics(
+                                label: 'Iniciar Sesión',
+                                child: CustomButton(
+                                    text: 'Iniciar Sesión',
+                                    onPressed: _iniciarSesion,
+                                    color: const Color(0xFF4C39A6),
+                                  ),
                               ),
                         const SizedBox(height: 16),
                       ],
