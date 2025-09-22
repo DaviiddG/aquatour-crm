@@ -2,11 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "./web/index.html",
+      "src": "build/web/**",
       "use": "@vercel/static"
     }
   ],
-  "buildCommand": "flutter build web --release",
+  "buildCommand": "flutter build web --release --web-renderer html --csp",
   "installCommand": "curl -L https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.1-stable.tar.xz | tar xJ && export PATH=\"$PATH:`pwd`/flutter/bin\" && flutter doctor -v && flutter pub get",
-  "outputDirectory": "build/web"
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/.*", "dest": "/index.html" }
+  ]
 }
