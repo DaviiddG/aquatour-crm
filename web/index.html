@@ -3,33 +3,35 @@
 <head>
   <base href="/">
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Aquatour CRM - Sistema de gestión de clientes">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Aquatour CRM">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
   <title>Aquatour CRM</title>
+  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.json">
-  
-  <!-- This script adds the flutter initialization JS code -->
   <script src="flutter.js" defer></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #3D1F6E;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    #loading {
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
+  <div id="loading">
+    <p>Cargando Aquatour CRM...</p>
+  </div>
   <script>
     window.addEventListener('load', function(ev) {
-      // Descargar el main.dart.js
       _flutter.loader.loadEntrypoint({
-        serviceWorker: {
-          serviceWorkerVersion: serviceWorkerVersion,
-        },
         onEntrypointLoaded: function(engineInitializer) {
           engineInitializer.initializeEngine().then(function(appRunner) {
             return appRunner.runApp();
@@ -37,15 +39,6 @@
         }
       });
     });
-  </script>
-  
-  <!-- Mostrar mensaje de carga -->
-  <div id="loading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: #3D1F6E; color: white; font-family: Arial, sans-serif; font-size: 24px; z-index: 9999;">
-    Cargando Aquatour CRM...
-  </div>
-  
-  <script>
-    // Ocultar el mensaje de carga cuando la aplicación esté lista
     window.addEventListener('flutter-first-frame', function() {
       document.getElementById('loading').style.display = 'none';
     });
