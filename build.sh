@@ -20,8 +20,24 @@ flutter --version
 echo "Obteniendo dependencias..."
 flutter pub get
 
+# Limpiar build previo si existe
+if [ -d "build/web" ]; then
+    echo "Limpiando build anterior..."
+    rm -rf build/web
+fi
+
+# Crear directorio de salida
+mkdir -p build/web
+
 # Construir la aplicación
 echo "Construyendo la aplicación..."
-flutter build web --release --web-renderer html
+flutter build web --release --web-renderer html --target lib/main.dart
 
-echo "¡Construcción completada exitosamente!"
+# Verificar que el directorio de salida existe
+if [ ! -d "build/web" ]; then
+    echo "Error: No se pudo encontrar el directorio de salida build/web"
+    exit 1
+fi
+
+echo "¡Construcción completada exitosamente en build/web!"
+ls -la build/web/
