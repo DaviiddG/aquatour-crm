@@ -1,7 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "flutter pub get && flutter build web --release --web-renderer html",
-  "installCommand": "curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.1-stable.tar.xz | tar xJ",
+  "buildCommand": "chmod +x build.sh && ./build.sh",
   "outputDirectory": "build/web",
   "routes": [
     { "handle": "filesystem" },
