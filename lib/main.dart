@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/login_screen.dart';
-import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/services/storage.dart';
+import 'dart:html' as html;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +15,10 @@ void main() async {
     print('✅ Almacenamiento inicializado correctamente');
   } catch (e) {
     print('⚠️ Error inicializando almacenamiento: $e');
+    // Forzar recarga en caso de error
+    if (kIsWeb) {
+      html.window.location.reload();
+    }
   }
   
   runApp(const MyApp());
