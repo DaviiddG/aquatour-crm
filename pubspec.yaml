@@ -22,8 +22,6 @@ dependencies:
   flutter_dotenv: ^5.1.0
   # JSON serialization
   json_annotation: ^4.8.1
-  # Para conexión directa a MySQL (opcional)
-  mysql1: ^0.20.0
 
 dev_dependencies:
   flutter_test:
