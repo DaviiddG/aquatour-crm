@@ -16,6 +16,10 @@ git config --global --add safe.directory /vercel/path0/flutter
 echo "Verificando la instalación de Flutter..."
 flutter --version
 
+# Limpiar todo antes de construir
+echo "Limpiando proyecto..."
+flutter clean
+
 # Obtener dependencias
 echo "Obteniendo dependencias..."
 flutter pub get
@@ -29,9 +33,15 @@ fi
 # Crear directorio de salida
 mkdir -p build/web
 
-# Construir la aplicación
-echo "Construyendo la aplicación..."
-flutter build web --release --web-renderer html --target lib/main.dart
+# Construir la aplicación con modo release y renderizador HTML
+echo "Construyendo la aplicación para web..."
+flutter build web \
+  --release \
+  --web-renderer html \
+  --target lib/main.dart \
+  --dart-define=FLUTTER_WEB_USE_SKIA=true \
+  --dart-define=FLUTTER_WEB_CANVASKIT_URL=canvaskit/ \
+  --dart-define=FLUTTER_WEB_USE_SKIA=true
 
 # Verificar que el directorio de salida existe
 if [ ! -d "build/web" ]; then
@@ -39,5 +49,19 @@ if [ ! -d "build/web" ]; then
     exit 1
 fi
 
-echo "¡Construcción completada exitosamente en build/web!"
+# Mostrar información del build
+echo "\n✅ Construcción completada exitosamente en build/web/"
+echo "\n📁 Contenido del directorio build/web/:"
 ls -la build/web/
+
+# Verificar archivos críticos
+CRITICAL_FILES=("index.html" "main.dart.js" "flutter.js" "manifest.json")
+for file in "${CRITICAL_FILES[@]}"; do
+    if [ ! -f "build/web/$file" ]; then
+        echo "\n⚠️  ¡Advertencia! No se encontró el archivo crítico: $file"
+    else
+        echo "\n✅ Archivo encontrado: $file"
+    fi
+done
+
+echo "\n🚀 ¡La aplicación está lista para desplegarse!"
