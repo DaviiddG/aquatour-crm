@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/contacts_screen.dart';
 import 'package:aquatour/login_screen.dart';
+import 'package:aquatour/performance_indicators_screen.dart';
 import 'package:aquatour/quotes_screen.dart';
 import 'package:aquatour/reservations_screen.dart';
 import 'package:aquatour/widgets/dashboard_option_card.dart';
@@ -41,6 +42,12 @@ class LimitedDashboardScreen extends StatelessWidget {
       description: 'Consulta datos clave de clientes y mantén la información al día.',
       icon: Icons.contacts,
       builder: (context) => const ContactsScreen(),
+    ),
+    _LimitedModule(
+      title: 'Indicadores de Desempeño',
+      description: 'Visualiza tus métricas personales y analiza tu rendimiento mensual.',
+      icon: Icons.analytics,
+      builder: (context) => const PerformanceIndicatorsScreen(),
     ),
   ];
 

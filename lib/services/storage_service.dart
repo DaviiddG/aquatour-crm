@@ -218,6 +218,87 @@ class StorageService {
     }
   }
 
+  // ===== INDICADORES DE DESEMPEÑO =====
+
+  /// Obtiene métricas de rendimiento específicas para un usuario
+  /// Incluye ventas completadas, reservas confirmadas y cotizaciones aceptadas
+  Future<Map<String, dynamic>> getPerformanceMetrics(int userId) async {
+    try {
+      // En producción, esto vendría de la API
+      // Por ahora, generamos datos simulados basados en el userId
+      final metrics = await _generateMockPerformanceData(userId);
+      print('📊 Métricas obtenidas para usuario $userId');
+      return metrics;
+    } catch (e) {
+      print('❌ Error obteniendo métricas de desempeño: $e');
+      return _getDefaultMetrics();
+    }
+  }
+
+  /// Genera datos simulados de rendimiento basados en el ID del usuario
+  Future<Map<String, dynamic>> _generateMockPerformanceData(int userId) async {
+    // Usamos el userId como semilla para generar datos consistentes pero únicos
+    final seed = userId.hashCode;
+
+    // Ventas del último mes (completadas vs totales)
+    final totalSales = (seed % 15) + 5; // 5-20 ventas
+    final completedSales = (totalSales * 0.7).round(); // ~70% completadas
+    final totalRevenue = completedSales * 450.0 + (totalSales - completedSales) * 150.0; // Precios simulados
+
+    // Reservas (confirmadas vs pendientes)
+    final totalReservations = (seed % 12) + 3; // 3-15 reservas
+    final confirmedReservations = (totalReservations * 0.8).round(); // ~80% confirmadas
+
+    // Cotizaciones (aceptadas vs totales)
+    final totalQuotes = (seed % 10) + 2; // 2-12 cotizaciones
+    final acceptedQuotes = (totalQuotes * 0.6).round(); // ~60% aceptadas
+
+    return {
+      'sales': {
+        'total': totalSales,
+        'completed': completedSales,
+        'totalRevenue': totalRevenue,
+        'averageSale': totalRevenue / totalSales,
+      },
+      'reservations': {
+        'total': totalReservations,
+        'confirmed': confirmedReservations,
+        'pending': totalReservations - confirmedReservations,
+      },
+      'quotes': {
+        'total': totalQuotes,
+        'accepted': acceptedQuotes,
+        'conversionRate': acceptedQuotes / totalQuotes,
+      },
+      'period': 'Último mes',
+      'lastUpdated': DateTime.now().toIso8601String(),
+    };
+  }
+
+  /// Métricas por defecto en caso de error
+  Map<String, dynamic> _getDefaultMetrics() {
+    return {
+      'sales': {
+        'total': 0,
+        'completed': 0,
+        'totalRevenue': 0.0,
+        'averageSale': 0.0,
+      },
+      'reservations': {
+        'total': 0,
+        'confirmed': 0,
+        'pending': 0,
+      },
+      'quotes': {
+        'total': 0,
+        'accepted': 0,
+        'conversionRate': 0.0,
+      },
+      'period': 'Sin datos',
+      'lastUpdated': DateTime.now().toIso8601String(),
+    };
+  }
+
   // ===== UTILIDADES =====
 
   // Limpiar todos los datos locales (para compatibilidad)
