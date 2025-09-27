@@ -1,20 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:aquatour/login_screen.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'dart:html' as html;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Inicializar almacenamiento
+
+  // Inicializar variables de entorno
+  try {
+    await dotenv.load(fileName: ".env");
+    print('✅ Variables de entorno cargadas desde .env');
+  } catch (e) {
+    print('⚠️ Error cargando .env, intentando .env.local: $e');
+    try {
+      await dotenv.load(fileName: ".env.local");
+      print('✅ Variables de entorno cargadas desde .env.local');
+    } catch (e2) {
+      print('⚠️ Error cargando .env.local, usando valores por defecto: $e2');
+    }
+  }
+
+  // Inicializar servicios de API
   try {
     final storageService = StorageService();
     await storageService.initializeData();
-    print('✅ Almacenamiento inicializado correctamente');
+    print('✅ Servicios de API inicializados correctamente');
   } catch (e) {
-    print('⚠️ Error inicializando almacenamiento: $e');
+    print('⚠️ Error inicializando servicios de API: $e');
     // Forzar recarga en caso de error
     if (kIsWeb) {
       html.window.location.reload();

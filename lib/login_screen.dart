@@ -29,39 +29,46 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _iniciarSesion() async {
-    if (_claveFormulario.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
+    if (!_claveFormulario.currentState!.validate()) return;
+
+    try {
+      setState(() => _isLoading = true);
 
       final user = await _storageService.login(
-        _controladorUsuario.text,
-        _controladorClave.text,
+        _controladorUsuario.text.trim(),
+        _controladorClave.text.trim(),
       );
 
-      setState(() {
-        _isLoading = false;
-      });
+      if (!mounted) return;
 
-      if (user != null && mounted) {
-        // Navegar al dashboard correspondiente según el rol
-        if (user.esAdministrador) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const DashboardScreen()),
-          );
-        } else {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const LimitedDashboardScreen()),
-          );
-        }
-      } else if (mounted) {
+      setState(() => _isLoading = false);
+
+      if (user == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Credenciales incorrectas o usuario inactivo.'),
+            content: Text('No fue posible iniciar sesión. Verifica las credenciales.'),
             backgroundColor: Colors.red,
           ),
         );
+        return;
       }
+
+      final destination = user.esAdministrador
+          ? const DashboardScreen()
+          : const LimitedDashboardScreen();
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => destination),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error iniciando sesión: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

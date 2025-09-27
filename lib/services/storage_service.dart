@@ -1,189 +1,67 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/contact.dart';
 import '../models/user.dart';
-
-// Importación condicional para web
-import 'dart:html' as html show window;
+import 'api_service.dart';
 
 class StorageService {
   static final StorageService _instance = StorageService._internal();
   factory StorageService() => _instance;
   StorageService._internal();
 
-  static const String _contactsKey = 'aquatour_contacts';
-  static const String _usersKey = 'aquatour_users';
-  static const String _currentUserKey = 'aquatour_current_user';
-  
-  // Lista en memoria para fallback
-  List<Contact> _memoryContacts = [];
-  List<User> _memoryUsers = [];
+  final ApiService _apiService = ApiService();
 
-  // Usuario actual logueado
+  // Token de autenticación actual
+  String? _authToken;
   User? _currentUser;
 
-  // Inicializar con datos de ejemplo
+  // Configurar token de autenticación
+  void setAuthToken(String token) {
+    _authToken = token;
+  }
+
+  // Limpiar token de autenticación
+  void clearAuthToken() {
+    _authToken = null;
+    _currentUser = null;
+  }
+
+  // Inicializar datos (ya no necesario con API, pero mantenemos para compatibilidad)
   Future<void> initializeData() async {
     try {
-      // Inicializar contactos
-      final existingContacts = await getAllContacts();
-      if (existingContacts.isEmpty) {
-        final sampleContacts = [
-          Contact(
-            id: 1,
-            name: 'Juan Pérez',
-            email: 'juan.perez@email.com',
-            phone: '+1234567890',
-            company: 'Empresa ABC',
-            createdAt: DateTime.now().subtract(const Duration(days: 5)),
-            updatedAt: DateTime.now().subtract(const Duration(days: 5)),
-          ),
-          Contact(
-            id: 2,
-            name: 'María García',
-            email: 'maria.garcia@email.com',
-            phone: '+0987654321',
-            company: 'Turismo XYZ',
-            createdAt: DateTime.now().subtract(const Duration(days: 3)),
-            updatedAt: DateTime.now().subtract(const Duration(days: 3)),
-          ),
-          Contact(
-            id: 3,
-            name: 'Carlos López',
-            email: 'carlos.lopez@email.com',
-            phone: '+1122334455',
-            company: 'Viajes Premium',
-            createdAt: DateTime.now().subtract(const Duration(days: 1)),
-            updatedAt: DateTime.now().subtract(const Duration(days: 1)),
-          ),
-        ];
-
-        for (final contact in sampleContacts) {
-          await insertContact(contact);
-        }
-      }
-
-      // Inicializar usuarios con roles
-      final existingUsers = await getAllUsers();
-      if (existingUsers.isEmpty) {
-        final sampleUsers = [
-          User(
-            idUsuario: 1,
-            nombre: 'Super',
-            apellido: 'Admin',
-            email: 'superadmin@aquatour.com',
-            rol: UserRole.superadministrador,
-            tipoDocumento: 'CC',
-            numDocumento: '00000000',
-            fechaNacimiento: DateTime(1980, 1, 1),
-            genero: 'Masculino',
-            telefono: '+57 300 000 0000',
-            direccion: 'Oficina Principal',
-            ciudadResidencia: 'Bogotá',
-            paisResidencia: 'Colombia',
-            contrasena: 'superadmin123',
-            activo: true,
-            createdAt: DateTime.now().subtract(const Duration(days: 30)),
-            updatedAt: DateTime.now().subtract(const Duration(days: 30)),
-          ),
-          User(
-            idUsuario: 2,
-            nombre: 'David',
-            apellido: 'Gonzalez',
-            email: 'davidg@aquatour.com',
-            rol: UserRole.administrador,
-            tipoDocumento: 'CC',
-            numDocumento: '1017924927',
-            fechaNacimiento: DateTime(2005, 9, 7), // 07-09-2005
-            genero: 'Masculino',
-            telefono: '3233053830',
-            direccion: 'Carrera 85f #58a - 51',
-            ciudadResidencia: 'Medellín',
-            paisResidencia: 'Colombia',
-            contrasena: 'Osquitar07',
-            activo: true,
-            createdAt: DateTime.now().subtract(const Duration(days: 10)),
-            updatedAt: DateTime.now(),
-          ),
-          User(
-            idUsuario: 3,
-            nombre: 'Luis',
-            apellido: 'Martínez',
-            email: 'empleado@aquatour.com',
-            rol: UserRole.empleado,
-            tipoDocumento: 'CC',
-            numDocumento: '87654321',
-            fechaNacimiento: DateTime(1985, 8, 22),
-            genero: 'Masculino',
-            telefono: '+57 310 987 6543',
-            direccion: 'Carrera 45 #12-34',
-            ciudadResidencia: 'Medellín',
-            paisResidencia: 'Colombia',
-            contrasena: 'empleado123',
-            activo: true,
-            createdAt: DateTime.now().subtract(const Duration(days: 7)),
-            updatedAt: DateTime.now().subtract(const Duration(days: 7)),
-          ),
-          User(
-            idUsuario: 4,
-            nombre: 'Carmen',
-            apellido: 'Vásquez',
-            email: 'carmen.vasquez@aquatour.com',
-            rol: UserRole.empleado,
-            tipoDocumento: 'CE',
-            numDocumento: '98765432',
-            fechaNacimiento: DateTime(1992, 12, 3),
-            genero: 'Femenino',
-            telefono: '+57 320 456 7890',
-            direccion: 'Avenida 80 #23-45',
-            ciudadResidencia: 'Cali',
-            paisResidencia: 'Colombia',
-            contrasena: 'carmen123',
-            activo: true,
-            createdAt: DateTime.now().subtract(const Duration(days: 3)),
-            updatedAt: DateTime.now().subtract(const Duration(days: 3)),
-          ),
-        ];
-
-        for (final user in sampleUsers) {
-          await insertUser(user);
-        }
-      }
-        
-      print('✅ Datos de ejemplo inicializados');
+      print('✅ API Service inicializado - listo para conectarse con backend Python');
+      // Aquí podríamos hacer alguna inicialización si es necesario
     } catch (e) {
-      print('⚠️ Error inicializando datos: $e');
+      print('⚠️ Error inicializando API Service: $e');
     }
   }
 
-  // Autenticación
+  // ===== AUTENTICACIÓN =====
+
   Future<User?> login(String email, String password) async {
     print('--- 🚀 Intentando iniciar sesión ---');
-    print('📧 Email ingresado: $email');
-    print('🔑 Contraseña ingresada: $password');
+    print('📧 Email: $email');
 
     try {
-      final users = await getAllUsers();
-      print('👥 Usuarios encontrados en localStorage: ${users.length}');
-      
-      for (var u in users) {
-        print('  - Verificando: ${u.email} | ${u.contrasena} | Activo: ${u.activo}');
+      final response = await _apiService.login(email, password);
+      print('✅ Login exitoso en API');
+
+      final token = response['access_token'] as String?;
+      final userData = response['user'] as Map<String, dynamic>? ?? response as Map<String, dynamic>?;
+
+      if (token != null) {
+        _authToken = token;
       }
 
-      final user = users.firstWhere(
-        (u) => u.email.toLowerCase() == email.toLowerCase() && 
-               u.contrasena == password && 
-               u.activo,
-        orElse: () {
-          print('❌ Usuario no encontrado o credenciales incorrectas.');
-          throw Exception('Usuario no encontrado');
-        },
-      );
-      
-      _currentUser = user;
-      await _saveCurrentUser(user);
-      print('✅ Login exitoso para: ${user.nombreCompleto}');
-      return user;
+      if (userData != null) {
+        _currentUser = User.fromMap(userData);
+        print('👤 Usuario autenticado: ${_currentUser!.nombreCompleto}');
+        return _currentUser;
+      }
+
+      print('❌ Respuesta de login incompleta');
+      return null;
     } catch (e) {
       print('❌ Error en login: $e');
       return null;
@@ -191,186 +69,71 @@ class StorageService {
   }
 
   Future<void> logout() async {
-    _currentUser = null;
-    if (kIsWeb) {
-      html.window.localStorage.remove(_currentUserKey);
+    try {
+      if (_authToken != null) {
+        await _apiService.logout(_authToken);
+      }
+      clearAuthToken();
+      print('✅ Logout exitoso');
+    } catch (e) {
+      print('⚠️ Error en logout: $e');
+      // Aun así limpiamos el estado local
+      clearAuthToken();
     }
   }
 
   User? get currentUser => _currentUser;
 
-  Future<void> _saveCurrentUser(User user) async {
-    if (kIsWeb) {
-      html.window.localStorage[_currentUserKey] = json.encode(user.toMap());
-    }
-  }
-
   Future<User?> getCurrentUser() async {
     if (_currentUser != null) return _currentUser;
-    
-    if (kIsWeb) {
-      final userJson = html.window.localStorage[_currentUserKey];
-      if (userJson != null) {
-        try {
-          final userMap = json.decode(userJson) as Map<String, dynamic>;
-          _currentUser = User.fromMap(userMap);
+
+    // Si tenemos token pero no usuario, podríamos verificar el token
+    if (_authToken != null) {
+      try {
+        final response = await _apiService.verifyToken(_authToken!);
+        final userData = response['user'] as Map<String, dynamic>?;
+        if (userData != null) {
+          _currentUser = User.fromMap(userData);
           return _currentUser;
-        } catch (e) {
-          print('❌ Error cargando usuario actual: $e');
         }
+      } catch (e) {
+        print('⚠️ Error verificando token: $e');
+        clearAuthToken();
       }
     }
+
     return null;
   }
 
-  // Guardar contactos
-  Future<void> _saveContacts(List<Contact> contacts) async {
-    try {
-      if (kIsWeb) {
-        final contactsJson = json.encode(contacts.map((c) => c.toMap()).toList());
-        html.window.localStorage[_contactsKey] = contactsJson;
-      } else {
-        _memoryContacts = List.from(contacts);
-      }
-    } catch (e) {
-      print('❌ Error guardando contactos: $e');
-      _memoryContacts = List.from(contacts);
-    }
-  }
-
-  // Guardar usuarios
-  Future<void> _saveUsers(List<User> users) async {
-    try {
-      if (kIsWeb) {
-        final usersJson = json.encode(users.map((u) => u.toMap()).toList());
-        html.window.localStorage[_usersKey] = usersJson;
-      } else {
-        _memoryUsers = List.from(users);
-      }
-    } catch (e) {
-      print('❌ Error guardando usuarios: $e');
-      _memoryUsers = List.from(users);
-    }
-  }
-
-  // CRUD para Contactos (existente)
-
-  Future<List<Contact>> getAllContacts() async {
-    try {
-      if (kIsWeb) {
-        final contactsJson = html.window.localStorage[_contactsKey];
-        if (contactsJson == null) return [];
-
-        final List<dynamic> contactsList = json.decode(contactsJson);
-        return contactsList.map((json) => Contact.fromMap(json as Map<String, dynamic>)).toList();
-      } else {
-        return List.from(_memoryContacts);
-      }
-    } catch (e) {
-      print('❌ Error obteniendo contactos: $e');
-      return _memoryContacts;
-    }
-  }
-
-  Future<int> insertContact(Contact contact) async {
-    try {
-      final contacts = await getAllContacts();
-      final newId = contacts.isEmpty ? 1 : contacts.map((c) => c.id ?? 0).reduce((a, b) => a > b ? a : b) + 1;
-      
-      final newContact = contact.copyWith(
-        id: newId,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      contacts.add(newContact);
-      await _saveContacts(contacts);
-      return newId;
-    } catch (e) {
-      print('❌ Error insertando contacto: $e');
-      rethrow;
-    }
-  }
-
-  Future<bool> updateContact(Contact contact) async {
-    try {
-      final contacts = await getAllContacts();
-      final index = contacts.indexWhere((c) => c.id == contact.id);
-      
-      if (index != -1) {
-        contacts[index] = contact.copyWith(updatedAt: DateTime.now());
-        await _saveContacts(contacts);
-        return true;
-      }
-      return false;
-    } catch (e) {
-      print('❌ Error actualizando contacto: $e');
-      return false;
-    }
-  }
-
-  Future<bool> deleteContact(int id) async {
-    try {
-      final contacts = await getAllContacts();
-      contacts.removeWhere((contact) => contact.id == id);
-      await _saveContacts(contacts);
-      return true;
-    } catch (e) {
-      print('❌ Error eliminando contacto: $e');
-      return false;
-    }
-  }
-
-  // CRUD para Usuarios (nuevo)
+  // ===== USUARIOS =====
 
   Future<List<User>> getAllUsers() async {
     try {
-      if (kIsWeb) {
-        final usersJson = html.window.localStorage[_usersKey];
-        if (usersJson == null) return [];
-
-        final List<dynamic> usersList = json.decode(usersJson);
-        return usersList.map((json) => User.fromMap(json as Map<String, dynamic>)).toList();
-      } else {
-        return List.from(_memoryUsers);
-      }
+      final usersData = await _apiService.getUsers(_authToken);
+      return usersData.map((userMap) => User.fromMap(userMap as Map<String, dynamic>)).toList();
     } catch (e) {
       print('❌ Error obteniendo usuarios: $e');
-      return _memoryUsers;
+      return [];
     }
   }
 
   Future<int> insertUser(User user) async {
     try {
-      final users = await getAllUsers();
-      final newId = users.isEmpty ? 1 : users.map((u) => u.idUsuario ?? 0).reduce((a, b) => a > b ? a : b) + 1;
-      
-      final newUser = user.copyWith(
-        idUsuario: newId,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      users.add(newUser);
-      await _saveUsers(users);
-      return newId;
+      final response = await _apiService.createUser(user.toMap(), _authToken);
+      final newId = response['id'] ?? response['id_usuario'];
+      print('✅ Usuario creado con ID: $newId');
+      return newId as int;
     } catch (e) {
-      print('❌ Error insertando usuario: $e');
+      print('❌ Error creando usuario: $e');
       rethrow;
     }
   }
 
   Future<bool> updateUser(User user) async {
     try {
-      final users = await getAllUsers();
-      final index = users.indexWhere((u) => u.idUsuario == user.idUsuario);
-      
-      if (index != -1) {
-        users[index] = user.copyWith(updatedAt: DateTime.now());
-        await _saveUsers(users);
-        return true;
-      }
-      return false;
+      await _apiService.updateUser(user.idUsuario!, user.toMap(), _authToken);
+      print('✅ Usuario actualizado: ${user.nombreCompleto}');
+      return true;
     } catch (e) {
       print('❌ Error actualizando usuario: $e');
       return false;
@@ -379,9 +142,8 @@ class StorageService {
 
   Future<bool> deleteUser(int id) async {
     try {
-      final users = await getAllUsers();
-      users.removeWhere((user) => user.idUsuario == id);
-      await _saveUsers(users);
+      await _apiService.deleteUser(id, _authToken);
+      print('✅ Usuario eliminado: ID $id');
       return true;
     } catch (e) {
       print('❌ Error eliminando usuario: $e');
@@ -389,29 +151,100 @@ class StorageService {
     }
   }
 
-  // Verificar si email ya existe
   Future<bool> emailExists(String email, {int? excludeUserId}) async {
-    final users = await getAllUsers();
-    return users.any((user) => 
-      user.email.toLowerCase() == email.toLowerCase() && 
-      user.idUsuario != excludeUserId
-    );
+    try {
+      final response = await _apiService.checkEmailExists(email, token: _authToken);
+      return response['exists'] ?? false;
+    } catch (e) {
+      print('❌ Error verificando email: $e');
+      return false;
+    }
   }
 
-  // Limpiar todos los datos
+  // ===== CONTACTOS =====
+
+  Future<List<Contact>> getAllContacts() async {
+    try {
+      final contactsData = await _apiService.getContacts(_authToken);
+      return contactsData.map((contactMap) => Contact.fromMap(contactMap as Map<String, dynamic>)).toList();
+    } catch (e) {
+      print('❌ Error obteniendo contactos: $e');
+      return [];
+    }
+  }
+
+  Future<int> insertContact(Contact contact) async {
+    try {
+      final response = await _apiService.createContact(contact.toMap(), _authToken);
+      final newId = response['id'];
+      print('✅ Contacto creado con ID: $newId');
+      return newId as int;
+    } catch (e) {
+      print('❌ Error creando contacto: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> updateContact(Contact contact) async {
+    try {
+      await _apiService.updateContact(contact.id!, contact.toMap(), _authToken);
+      print('✅ Contacto actualizado: ${contact.name}');
+      return true;
+    } catch (e) {
+      print('❌ Error actualizando contacto: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteContact(int id) async {
+    try {
+      await _apiService.deleteContact(id, _authToken);
+      print('✅ Contacto eliminado: ID $id');
+      return true;
+    } catch (e) {
+      print('❌ Error eliminando contacto: $e');
+      return false;
+    }
+  }
+
+  // ===== DASHBOARD Y ESTADÍSTICAS =====
+
+  Future<Map<String, dynamic>> getDashboardStats() async {
+    try {
+      return await _apiService.getDashboardStats(_authToken);
+    } catch (e) {
+      print('❌ Error obteniendo estadísticas: $e');
+      return {};
+    }
+  }
+
+  // ===== UTILIDADES =====
+
+  // Limpiar todos los datos locales (para compatibilidad)
   Future<void> clearAllData() async {
     try {
-      if (kIsWeb) {
-        html.window.localStorage.remove(_contactsKey);
-        html.window.localStorage.remove(_usersKey);
-        html.window.localStorage.remove(_currentUserKey);
-      }
-      _memoryContacts.clear();
-      _memoryUsers.clear();
-      _currentUser = null;
-      print('🗑️ Todos los datos eliminados');
+      clearAuthToken();
+      print('🗑️ Estado local limpiado');
     } catch (e) {
       print('❌ Error limpiando datos: $e');
+    }
+  }
+
+  // Verificar conectividad con la API
+  Future<bool> testConnection() async {
+    try {
+      // Intentar hacer una petición simple (como verificar token si existe)
+      if (_authToken != null) {
+        await _apiService.verifyToken(_authToken!);
+      } else {
+        // Si no hay token, podríamos hacer un ping a un endpoint público
+        // Por ahora, solo verificamos que la URL base sea accesible
+        print('ℹ️ API Base URL: ${ApiService.baseUrl}');
+      }
+      return true;
+    } catch (e) {
+      print('❌ Error de conectividad con API: $e');
+      return false;
     }
   }
 }

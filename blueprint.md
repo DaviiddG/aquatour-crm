@@ -76,7 +76,7 @@ LoginScreen
 
 ### Roles de Usuario
 
-#### Administrador (`admin@aquatour.com`)
+#### Administrador (`davidg@aquatour.com`)
 - Acceso completo a todos los módulos
 - Gestión de usuarios
 - Acceso al historial de pagos
@@ -138,12 +138,16 @@ echo "✅ Construcción completada"
 - [x] Configuración de despliegue en Vercel
 - [x] Script de construcción personalizado
 - [x] Optimización para web
+- [x] **Migración completa de localStorage a API REST** ✅
 
-### Fase 2: Módulos Básicos 🚧
-- [ ] Implementar CRUD completo para Cotizaciones
-- [ ] Desarrollar sistema de Reservas
-- [ ] Crear gestión de Contactos
-- [ ] Implementar administración de Empresas
+### Fase 2: Backend y Base de Datos 🚧
+- [ ] Implementar API REST en Python (FastAPI)
+- [ ] Configurar base de datos MySQL en Clever Cloud
+- [ ] Sistema de autenticación JWT
+- [ ] CRUD completo para Usuarios
+- [ ] CRUD completo para Contactos
+- [ ] Endpoints de Dashboard y estadísticas
+- [ ] Testing de integración con Flutter
 
 ### Fase 3: Funcionalidades Avanzadas 🔮
 - [ ] Sistema de notificaciones
