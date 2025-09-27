@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/contact.dart';
@@ -9,10 +10,24 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
+  static const String _dartDefineBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+
   // Base URL para la API - configurable desde .env
   static String get _baseUrl {
+    if (_dartDefineBaseUrl.isNotEmpty) {
+      return _dartDefineBaseUrl;
+    }
+
     final envUrl = dotenv.env['API_BASE_URL'];
-    return envUrl ?? 'http://localhost:8080/api'; // URL por defecto para desarrollo
+    if (envUrl != null && envUrl.isNotEmpty) {
+      return envUrl;
+    }
+
+    if (kIsWeb) {
+      return Uri.base.origin;
+    }
+
+    return 'http://localhost:8080/api'; // URL por defecto para desarrollo
   }
 
   static String get baseUrl => _baseUrl;
