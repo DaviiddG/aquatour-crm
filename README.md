@@ -38,7 +38,7 @@ El archivo `.env` contiene configuración opcional. Si no existe, créalo:
 
 ```
 # URL de tu API REST (cuando esté lista)
-API_BASE_URL=https://your-api-url.cleverapps.io/api
+API_BASE_URL=https://app-6aaf68d8-72ab-47f4-bad2-13d5ab31d374.cleverapps.io/api
 
 # Configuración de la aplicación
 APP_ENV=development

@@ -205,27 +205,30 @@ export const updateUser = async (idUsuario, userData) => {
     const fields = [];
     const values = [];
 
-    const fieldMapping = {
-      nombre: 'nombre',
-      apellido: 'apellido',
-      tipo_documento: 'tipo_documento',
-      num_documento: 'num_documento',
-      fecha_nacimiento: 'fecha_nacimiento',
-      lugar_nacimiento: 'lugar_nacimiento',
-      genero: 'genero',
-      telefono: 'telefono',
-      correo: 'correo',
-      direccion: 'direccion',
-      ciudad_residencia: 'ciudad_residencia',
-      pais_residencia: 'pais_residencia',
-      id_rol: 'id_rol',
-    };
+    const fieldMapping = [
+      { column: 'nombre', keys: ['nombre'] },
+      { column: 'apellido', keys: ['apellido'] },
+      { column: 'tipo_documento', keys: ['tipo_documento'] },
+      { column: 'num_documento', keys: ['num_documento'] },
+      { column: 'fecha_nacimiento', keys: ['fecha_nacimiento'] },
+      { column: 'lugar_nacimiento', keys: ['lugar_nacimiento'] },
+      { column: 'genero', keys: ['genero'] },
+      { column: 'telefono', keys: ['telefono'] },
+      { column: 'correo', keys: ['correo', 'email'] },
+      { column: 'direccion', keys: ['direccion'] },
+      { column: 'ciudad_residencia', keys: ['ciudad_residencia'] },
+      { column: 'pais_residencia', keys: ['pais_residencia'] },
+      { column: 'id_rol', keys: ['id_rol', 'rol'] },
+    ];
 
-    for (const [key, column] of Object.entries(fieldMapping)) {
-      if (key in dbFields && userData[key] !== undefined) {
-        fields.push(`${column} = ?`);
-        values.push(dbFields[key]);
-      }
+    for (const { column, keys } of fieldMapping) {
+      if (!(column in dbFields)) continue;
+
+      const hasUpdate = keys.some((key) => userData[key] !== undefined);
+      if (!hasUpdate) continue;
+
+      fields.push(`${column} = ?`);
+      values.push(dbFields[column]);
     }
 
     if (userData.contrasena) {
