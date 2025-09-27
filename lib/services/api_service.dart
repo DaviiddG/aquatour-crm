@@ -15,22 +15,40 @@ class ApiService {
   // Base URL para la API - configurable desde .env
   static String get _baseUrl {
     if (_dartDefineBaseUrl.isNotEmpty) {
-      return _dartDefineBaseUrl;
+      return _normalizeBaseUrl(_dartDefineBaseUrl);
     }
 
     final envUrl = dotenv.env['API_BASE_URL'];
     if (envUrl != null && envUrl.isNotEmpty) {
-      return envUrl;
+      return _normalizeBaseUrl(envUrl);
     }
 
     if (kIsWeb) {
-      return Uri.base.origin;
+      return _normalizeBaseUrl(Uri.base.origin);
     }
 
     return 'http://localhost:8080/api'; // URL por defecto para desarrollo
   }
 
   static String get baseUrl => _baseUrl;
+
+  static String _normalizeBaseUrl(String rawUrl) {
+    if (rawUrl.isEmpty) return rawUrl;
+
+    try {
+      final uri = Uri.parse(rawUrl);
+      final segments = List<String>.from(uri.pathSegments.where((segment) => segment.isNotEmpty));
+      if (segments.isEmpty || segments.last.toLowerCase() != 'api') {
+        segments.add('api');
+      }
+
+      final normalized = uri.replace(pathSegments: segments).toString();
+      return normalized.endsWith('/') ? normalized.substring(0, normalized.length - 1) : normalized;
+    } catch (_) {
+      // En caso de URL inválida, regresamos el valor original para no romper la app
+      return rawUrl;
+    }
+  }
 
   // Headers comunes
   Map<String, String> get _headers => {
