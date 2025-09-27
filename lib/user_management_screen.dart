@@ -22,6 +22,43 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     _initializeData();
   }
 
+  bool _canEditUser(User? user) {
+    if (_currentUser == null) return false;
+
+    if (user == null) {
+      // Crear nuevo usuario
+      return _currentUser!.esSuperAdministrador || _currentUser!.rol == UserRole.administrador;
+    }
+
+    if (_currentUser!.idUsuario == user.idUsuario) {
+      return true;
+    }
+
+    if (_currentUser!.esSuperAdministrador) {
+      return true;
+    }
+
+    if (_currentUser!.rol == UserRole.administrador) {
+      return user.rol == UserRole.empleado;
+    }
+
+    return false;
+  }
+
+  bool _canDeleteUser(User user) {
+    if (_currentUser == null) return false;
+
+    if (_currentUser!.esSuperAdministrador) {
+      return true;
+    }
+
+    if (_currentUser!.rol == UserRole.administrador) {
+      return user.rol == UserRole.empleado;
+    }
+
+    return false;
+  }
+
   Future<void> _initializeData() async {
     await _loadCurrentUser();
     await _loadUsers();
@@ -70,6 +107,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         const SnackBar(
           content: Text('No tienes permisos para gestionar usuarios'),
           backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!_canEditUser(userToEdit)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No puedes editar usuarios con un rol igual o superior al tuyo'),
+          backgroundColor: Colors.orange,
         ),
       );
       return;
@@ -531,6 +578,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       return;
     }
 
+    if (!_canDeleteUser(user)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No puedes eliminar usuarios con un rol igual o superior al tuyo'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -710,15 +767,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_currentUser?.puedeGestionarUsuarios == true)
+                            if (_currentUser?.puedeGestionarUsuarios == true &&
+                                _canEditUser(user))
                               IconButton(
                                 icon: const Icon(Icons.edit, color: Colors.blue),
                                 onPressed: () {
                                   _showUserDialog(userToEdit: user);
                                 },
                               ),
-                            if (_currentUser?.puedeGestionarUsuarios == true && 
-                                _currentUser?.idUsuario != user.idUsuario)
+                            if (_currentUser?.puedeGestionarUsuarios == true &&
+                                _currentUser?.idUsuario != user.idUsuario &&
+                                _canDeleteUser(user))
                               IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () {

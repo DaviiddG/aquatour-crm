@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:aquatour/login_screen.dart';
+import 'package:aquatour/dashboard_screen.dart';
+import 'package:aquatour/limited_dashboard_screen.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'dart:html' as html;
 
@@ -86,11 +88,59 @@ class MyApp extends StatelessWidget {
           floatingLabelStyle: const TextStyle(color: colorAcento),
         ),
       ),
-      home: const LoginScreen(),
+      home: const _SessionGate(),
       routes: {
         // No hay ruta de registro
       },
       debugShowCheckedModeBanner: false,
     );
+  }
+}
+
+class _SessionGate extends StatefulWidget {
+  const _SessionGate();
+
+  @override
+  State<_SessionGate> createState() => _SessionGateState();
+}
+
+class _SessionGateState extends State<_SessionGate> {
+  final StorageService _storageService = StorageService();
+  bool _isLoading = true;
+  Widget? _destination;
+
+  @override
+  void initState() {
+    super.initState();
+    _evaluateSession();
+  }
+
+  Future<void> _evaluateSession() async {
+    final user = await _storageService.getCurrentUser();
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+      if (user != null) {
+        _destination = user.esAdministrador
+            ? const DashboardScreen()
+            : const LimitedDashboardScreen();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_destination != null) {
+      return _destination!;
+    }
+
+    return const LoginScreen();
   }
 }

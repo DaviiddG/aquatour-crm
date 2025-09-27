@@ -1,4 +1,6 @@
 import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/contact.dart';
@@ -8,7 +10,9 @@ import 'api_service.dart';
 class StorageService {
   static final StorageService _instance = StorageService._internal();
   factory StorageService() => _instance;
-  StorageService._internal();
+  StorageService._internal() {
+    _restoreSession();
+  }
 
   final ApiService _apiService = ApiService();
 
@@ -16,15 +20,22 @@ class StorageService {
   String? _authToken;
   User? _currentUser;
 
+  static const String _tokenStorageKey = 'aquatour_auth_token';
+  static const String _userStorageKey = 'aquatour_current_user';
+  static const String _lastActivityStorageKey = 'aquatour_last_activity';
+  static const Duration _sessionTimeout = Duration(minutes: 10);
+
   // Configurar token de autenticación
   void setAuthToken(String token) {
     _authToken = token;
+    _persistSession();
   }
 
   // Limpiar token de autenticación
   void clearAuthToken() {
     _authToken = null;
     _currentUser = null;
+    _clearSessionStorage();
   }
 
   // Inicializar datos (ya no necesario con API, pero mantenemos para compatibilidad)
@@ -56,6 +67,7 @@ class StorageService {
 
       if (userData != null) {
         _currentUser = User.fromMap(userData);
+        _persistSession();
         print('👤 Usuario autenticado: ${_currentUser!.nombreCompleto}');
         return _currentUser;
       }
@@ -70,22 +82,36 @@ class StorageService {
 
   Future<void> logout() async {
     try {
-      if (_authToken != null) {
-        await _apiService.logout(_authToken);
+      final token = _authToken;
+      _clearSessionStorage();
+      _authToken = null;
+      _currentUser = null;
+
+      if (token != null) {
+        await _apiService.logout(token);
       }
-      clearAuthToken();
+
       print('✅ Logout exitoso');
     } catch (e) {
       print('⚠️ Error en logout: $e');
       // Aun así limpiamos el estado local
-      clearAuthToken();
+      _clearSessionStorage();
+      _authToken = null;
+      _currentUser = null;
     }
   }
 
   User? get currentUser => _currentUser;
 
   Future<User?> getCurrentUser() async {
-    if (_currentUser != null) return _currentUser;
+    if (!_hasValidSession()) {
+      return null;
+    }
+
+    if (_currentUser != null) {
+      _refreshLastActivity();
+      return _currentUser;
+    }
 
     // Si tenemos token pero no usuario, podríamos verificar el token
     if (_authToken != null) {
@@ -94,6 +120,7 @@ class StorageService {
         final userData = response['user'] as Map<String, dynamic>?;
         if (userData != null) {
           _currentUser = User.fromMap(userData);
+          _persistSession();
           return _currentUser;
         }
       } catch (e) {
@@ -235,6 +262,17 @@ class StorageService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getEmployeeClients(int employeeId) async {
+    try {
+      final clients = await _generateMockClients(employeeId);
+      print('🧾 Clientes mock generados para empleado $employeeId: ${clients.length}');
+      return clients;
+    } catch (e) {
+      print('❌ Error obteniendo clientes para empleado $employeeId: $e');
+      return [];
+    }
+  }
+
   /// Genera datos simulados de rendimiento basados en el ID del usuario
   Future<Map<String, dynamic>> _generateMockPerformanceData(int userId) async {
     // Usamos el userId como semilla para generar datos consistentes pero únicos
@@ -273,6 +311,47 @@ class StorageService {
       'period': 'Último mes',
       'lastUpdated': DateTime.now().toIso8601String(),
     };
+  }
+
+  Future<List<Map<String, dynamic>>> _generateMockClients(int employeeId) async {
+    final seed = employeeId.hashCode;
+    final clientCount = (seed % 6) + 2; // 2-7 clientes
+
+    final nationalities = [
+      'Colombia',
+      'México',
+      'Argentina',
+      'Chile',
+      'Perú',
+      'España',
+    ];
+    final states = ['Soltero', 'Casado', 'Divorciado', 'Unión libre'];
+    final preferences = [
+      'Playas y resorts todo incluido',
+      'Turismo de aventura',
+      'Experiencias gastronómicas',
+      'Cruceros por el Caribe',
+      'Ciudades culturales',
+      'Viajes familiares',
+    ];
+
+    final clients = <Map<String, dynamic>>[];
+    for (var i = 0; i < clientCount; i++) {
+      final base = seed + i * 31;
+      clients.add({
+        'id_cliente': base.abs() % 9000 + 1000,
+        'nombre': 'Cliente ${String.fromCharCode(65 + (base % 26).abs())}$i',
+        'nacionalidad': nationalities[base.abs() % nationalities.length],
+        'pasaporte': 'P-${employeeId % 100}-${base.abs() % 999999}',
+        'fecha_registro': DateTime.now().subtract(Duration(days: (base.abs() % 180))).toIso8601String(),
+        'preferencias_viaje': preferences[base.abs() % preferences.length],
+        'id_empleado': employeeId,
+        'satisfaccion': ((base.abs() % 5) + 1).toDouble(),
+        'estado_civil': states[base.abs() % states.length],
+      });
+    }
+
+    return clients;
   }
 
   /// Métricas por defecto en caso de error
@@ -327,5 +406,81 @@ class StorageService {
       print('❌ Error de conectividad con API: $e');
       return false;
     }
+  }
+
+  void _persistSession() {
+    if (!kIsWeb) return;
+    if (_authToken != null) {
+      html.window.localStorage[_tokenStorageKey] = _authToken!;
+    }
+    if (_currentUser != null) {
+      html.window.localStorage[_userStorageKey] = jsonEncode(_currentUser!.toMap());
+    }
+    if (_authToken != null || _currentUser != null) {
+      _refreshLastActivity();
+    }
+  }
+
+  void _refreshLastActivity() {
+    if (!kIsWeb) return;
+    html.window.localStorage[_lastActivityStorageKey] = DateTime.now().toIso8601String();
+  }
+
+  bool _hasValidSession() {
+    if (!kIsWeb) {
+      return _authToken != null || _currentUser != null;
+    }
+
+    final lastActivity = html.window.localStorage[_lastActivityStorageKey];
+    if (_isSessionExpired(lastActivity)) {
+      clearAuthToken();
+      return false;
+    }
+    return _authToken != null || _currentUser != null;
+  }
+
+  bool _isSessionExpired(String? isoString) {
+    if (isoString == null) return false;
+    final lastDate = DateTime.tryParse(isoString);
+    if (lastDate == null) return false;
+    return DateTime.now().difference(lastDate) > _sessionTimeout;
+  }
+
+  void _restoreSession() {
+    if (!kIsWeb) return;
+
+    final lastActivity = html.window.localStorage[_lastActivityStorageKey];
+    if (_isSessionExpired(lastActivity)) {
+      _clearSessionStorage();
+      return;
+    }
+
+    final storedToken = html.window.localStorage[_tokenStorageKey];
+    final storedUserJson = html.window.localStorage[_userStorageKey];
+
+    if (storedToken != null && storedToken.isNotEmpty) {
+      _authToken = storedToken;
+    }
+
+    if (storedUserJson != null && storedUserJson.isNotEmpty) {
+      try {
+        final userMap = jsonDecode(storedUserJson) as Map<String, dynamic>;
+        _currentUser = User.fromMap(userMap);
+      } catch (e) {
+        print('⚠️ No se pudo restaurar el usuario almacenado: $e');
+        _currentUser = null;
+      }
+    }
+
+    if (_authToken != null && _currentUser != null) {
+      _refreshLastActivity();
+    }
+  }
+
+  void _clearSessionStorage() {
+    if (!kIsWeb) return;
+    html.window.localStorage.remove(_tokenStorageKey);
+    html.window.localStorage.remove(_userStorageKey);
+    html.window.localStorage.remove(_lastActivityStorageKey);
   }
 }

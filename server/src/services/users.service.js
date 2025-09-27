@@ -257,6 +257,15 @@ export const updateUser = async (idUsuario, userData) => {
 };
 
 export const deleteUser = async (idUsuario) => {
+  const user = await findUserById(idUsuario);
+  if (!user) return false;
+
+  if (user.rol === 'superadministrador') {
+    const error = new Error('No se permite eliminar un superadministrador');
+    error.status = 403;
+    throw error;
+  }
+
   const connection = await getConnection();
 
   try {

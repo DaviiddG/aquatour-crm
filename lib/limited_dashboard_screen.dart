@@ -6,6 +6,11 @@ import 'package:aquatour/performance_indicators_screen.dart';
 import 'package:aquatour/quotes_screen.dart';
 import 'package:aquatour/reservations_screen.dart';
 import 'package:aquatour/widgets/dashboard_option_card.dart';
+import 'package:aquatour/models/user.dart';
+import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/screens/destinations_screen.dart';
+import 'package:aquatour/screens/tour_packages_screen.dart';
+import 'package:aquatour/screens/client_list_screen.dart';
 
 class _LimitedModule {
   const _LimitedModule({
@@ -48,6 +53,24 @@ class LimitedDashboardScreen extends StatelessWidget {
       description: 'Visualiza tus métricas personales y analiza tu rendimiento mensual.',
       icon: Icons.analytics,
       builder: (context) => const PerformanceIndicatorsScreen(),
+    ),
+    _LimitedModule(
+      title: 'Clientes',
+      description: 'Gestiona la cartera de clientes asignados y su información clave.',
+      icon: Icons.people_outline,
+      builder: (context) => const ClientListScreen(),
+    ),
+    _LimitedModule(
+      title: 'Destinos',
+      description: 'Explora los destinos disponibles para crear experiencias a medida.',
+      icon: Icons.location_on_outlined,
+      builder: (context) => const DestinationsScreen(),
+    ),
+    _LimitedModule(
+      title: 'Paquetes Turísticos',
+      description: 'Consulta y personaliza paquetes y promociones para tus clientes.',
+      icon: Icons.card_travel,
+      builder: (context) => const TourPackagesScreen(),
     ),
   ];
 
@@ -98,7 +121,8 @@ class LimitedDashboardScreen extends StatelessWidget {
         ),
         actions: [
           TextButton.icon(
-            onPressed: () {
+            onPressed: () async {
+              await StorageService().logout();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (Route<dynamic> route) => false,
@@ -127,16 +151,22 @@ class LimitedDashboardScreen extends StatelessWidget {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                    child: _LimitedHeader(width: width),
+                    child: FutureBuilder<User?>(
+                      future: StorageService().getCurrentUser(),
+                      builder: (context, snapshot) {
+                        final user = snapshot.data;
+                        return _LimitedHeader(width: width, currentUser: user);
+                      },
+                    ),
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                   sliver: SliverGrid(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 24,
-                      mainAxisSpacing: 24,
+                      crossAxisSpacing: 18,
+                      mainAxisSpacing: 16,
                       childAspectRatio: cardAspectRatio,
                     ),
                     delegate: SliverChildBuilderDelegate(
@@ -171,20 +201,26 @@ class LimitedDashboardScreen extends StatelessWidget {
   }
 
   double _aspectRatioForWidth(double width) {
-    if (width >= 1200) return 1.2;
-    if (width >= 800) return 1.15;
-    return 1.35;
+    if (width >= 1200) return 1.6;
+    if (width >= 800) return 1.45;
+    return 1.3;
   }
 }
 
 class _LimitedHeader extends StatelessWidget {
-  const _LimitedHeader({required this.width});
+  const _LimitedHeader({required this.width, this.currentUser});
 
   final double width;
+  final User? currentUser;
 
   @override
   Widget build(BuildContext context) {
     final isCompact = width < 900;
+    final firstName = (currentUser?.nombre ?? '').trim();
+    final greetingName = firstName.isNotEmpty ? firstName.split(' ').first : 'Bienvenido';
+    final subtitle = currentUser != null
+        ? 'Accede a tus módulos asignados y consulta tu rendimiento en tiempo real.'
+        : 'Gestiona tus tareas y mantente al día con tus clientes.';
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -210,7 +246,7 @@ class _LimitedHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Hola, bienvenido de nuevo',
+            'Hola, $greetingName 👋',
             style: GoogleFonts.montserrat(
               fontSize: isCompact ? 22 : 24,
               fontWeight: FontWeight.w700,
@@ -219,7 +255,7 @@ class _LimitedHeader extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Desde aquí puedes acceder a tus módulos asignados y mantenerte al día con tus tareas.',
+            subtitle,
             style: GoogleFonts.montserrat(
               fontSize: isCompact ? 13 : 14,
               color: Colors.white.withOpacity(0.84),
@@ -227,53 +263,6 @@ class _LimitedHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: const [
-              _LimitedHeaderChip(
-                icon: Icons.task_alt,
-                label: 'Tareas pendientes: 4',
-              ),
-              _LimitedHeaderChip(
-                icon: Icons.update,
-                label: 'Última actualización: hoy',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LimitedHeaderChip extends StatelessWidget {
-  const _LimitedHeaderChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: Colors.white),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: GoogleFonts.montserrat(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
-          ),
         ],
       ),
     );

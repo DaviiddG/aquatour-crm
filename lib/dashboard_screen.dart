@@ -1,72 +1,85 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:aquatour/companies_screen.dart';
-import 'package:aquatour/contacts_screen.dart';
-import 'package:aquatour/login_screen.dart';
-import 'package:aquatour/payment_history_screen.dart';
-import 'package:aquatour/quotes_screen.dart';
-import 'package:aquatour/reservations_screen.dart';
-import 'package:aquatour/user_management_screen.dart';
-import 'package:aquatour/widgets/dashboard_option_card.dart';
+import 'models/user.dart';
+import 'login_screen.dart';
+import 'performance_indicators_screen.dart';
+import 'contacts_screen.dart';
+import 'companies_screen.dart';
+import 'quotes_screen.dart';
+import 'reservations_screen.dart';
+import 'user_management_screen.dart';
+import 'services/storage_service.dart';
+import 'widgets/dashboard_option_card.dart';
 
-class _DashboardModule {
-  const _DashboardModule({
-    required this.title,
-    required this.description,
-    required this.icon,
-    this.badge,
-    required this.builder,
-  });
-
+class DashboardModule {
   final String title;
   final String description;
   final IconData icon;
   final String? badge;
   final WidgetBuilder builder;
+  final List<UserRole> allowedRoles;
+
+  const DashboardModule({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.builder,
+    this.badge,
+    this.allowedRoles = const [
+      UserRole.empleado,
+      UserRole.administrador,
+      UserRole.superadministrador
+    ],
+  });
 }
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
-  static final List<_DashboardModule> _modules = [
-    _DashboardModule(
-      title: 'Cotizaciones',
-      description: 'Crea, envía y realiza seguimiento a las cotizaciones emitidas.',
-      icon: Icons.request_quote,
-      badge: 'Nuevo',
-      builder: (context) => const QuotesScreen(),
-    ),
-    _DashboardModule(
-      title: 'Usuarios',
-      description: 'Gestiona roles, permisos y estados de los usuarios en el sistema.',
-      icon: Icons.people_alt,
-      builder: (context) => const UserManagementScreen(),
-    ),
-    _DashboardModule(
-      title: 'Reservas',
-      description: 'Administra las reservas activas y próximas salidas.',
-      icon: Icons.book_online,
-      builder: (context) => const ReservationsScreen(),
-    ),
-    _DashboardModule(
-      title: 'Historial de Pagos',
-      description: 'Consulta pagos recientes y verifica estados de facturación.',
-      icon: Icons.history_toggle_off,
-      builder: (context) => const PaymentHistoryScreen(),
-    ),
-    _DashboardModule(
-      title: 'Empresas',
-      description: 'Mantén actualizados los datos de tus aliados estratégicos.',
-      icon: Icons.apartment,
-      builder: (context) => const CompaniesScreen(),
-    ),
-    _DashboardModule(
-      title: 'Contactos',
-      description: 'Gestiona la información clave de tus clientes y prospectos.',
-      icon: Icons.contacts,
-      builder: (context) => const ContactsScreen(),
-    ),
-  ];
+  List<DashboardModule> _getModulesForUser(User user) {
+    final modules = <DashboardModule>[
+      DashboardModule(
+        title: 'Indicadores',
+        description: 'Métricas clave del negocio y desempeño del equipo.',
+        icon: Icons.analytics_rounded,
+        builder: (context) => const PerformanceIndicatorsScreen(),
+      ),
+      DashboardModule(
+        title: 'Contactos',
+        description: 'Base de clientes y prospectos asignados.',
+        icon: Icons.people_alt_rounded,
+        builder: (context) => const ContactsScreen(),
+      ),
+      DashboardModule(
+        title: 'Empresas',
+        description: 'Directorio de compañías con las que colaboramos.',
+        icon: Icons.business_rounded,
+        builder: (context) => const CompaniesScreen(),
+      ),
+      DashboardModule(
+        title: 'Cotizaciones',
+        description: 'Prepara y da seguimiento a propuestas comerciales.',
+        icon: Icons.request_quote_rounded,
+        builder: (context) => const QuotesScreen(),
+      ),
+      DashboardModule(
+        title: 'Reservas',
+        description: 'Gestiona reservas y estado de viajes confirmados.',
+        icon: Icons.event_available_rounded,
+        builder: (context) => const ReservationsScreen(),
+      ),
+      DashboardModule(
+        title: 'Usuarios',
+        description: 'Administra credenciales, roles y accesos.',
+        icon: Icons.admin_panel_settings_rounded,
+        badge: 'Solo administración',
+        builder: (context) => const UserManagementScreen(),
+        allowedRoles: const [UserRole.administrador, UserRole.superadministrador],
+      ),
+    ];
+
+    return modules.where((module) => module.allowedRoles.contains(user.rol)).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +99,7 @@ class DashboardScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(
-                Icons.dashboard_customize,
+                Icons.dashboard_customize_rounded,
                 color: Color(0xFF3D1F6E),
               ),
             ),
@@ -95,7 +108,7 @@ class DashboardScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Panel Principal',
+                  'Panel de Control',
                   style: GoogleFonts.montserrat(
                     fontWeight: FontWeight.w700,
                     fontSize: 18,
@@ -103,7 +116,7 @@ class DashboardScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Gestiona todos los módulos clave de Aquatour desde aquí',
+                  'Gestiona las métricas clave y coordina a tu equipo',
                   style: GoogleFonts.montserrat(
                     fontSize: 12,
                     color: const Color(0xFF6F6F6F),
@@ -115,7 +128,8 @@ class DashboardScreen extends StatelessWidget {
         ),
         actions: [
           TextButton.icon(
-            onPressed: () {
+            onPressed: () async {
+              await StorageService().logout();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (Route<dynamic> route) => false,
@@ -132,49 +146,68 @@ class DashboardScreen extends StatelessWidget {
         ],
       ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final crossAxisCount = _columnsForWidth(width);
-            final cardAspectRatio = _aspectRatioForWidth(width);
+        child: FutureBuilder<User?>(
+          future: StorageService().getCurrentUser(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-            return CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                    child: _DashboardHeader(width: width),
-                  ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  sliver: SliverGrid(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 24,
-                      mainAxisSpacing: 24,
-                      childAspectRatio: cardAspectRatio,
+            if (!snapshot.hasData || snapshot.data == null) {
+              return const Center(child: Text('No se pudo cargar la información del usuario'));
+            }
+
+            final user = snapshot.data!;
+            final modules = _getModulesForUser(user);
+
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final crossAxisCount = _getColumnsForWidth(width);
+                final cardAspectRatio = _getAspectRatioForWidth(width);
+
+                return CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                        child: _DashboardHeader(
+                          width: width,
+                          currentUser: user,
+                        ),
+                      ),
                     ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final module = _modules[index];
-                        return DashboardOptionCard(
-                          title: module.title,
-                          description: module.description,
-                          icon: module.icon,
-                          badge: module.badge,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: module.builder),
-                          ),
-                        );
-                      },
-                      childCount: _modules.length,
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 18,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: cardAspectRatio,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final module = modules[index];
+                            return DashboardOptionCard(
+                              title: module.title,
+                              description: module.description,
+                              icon: module.icon,
+                              badge: module.badge,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(builder: module.builder),
+                              ),
+                            );
+                          },
+                          childCount: modules.length,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
-              ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  ],
+                );
+              },
             );
           },
         ),
@@ -182,29 +215,33 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  int _columnsForWidth(double width) {
-    if (width >= 1400) return 4;
-    if (width >= 1080) return 3;
-    if (width >= 760) return 2;
+  int _getColumnsForWidth(double width) {
+    if (width >= 1200) return 3;
+    if (width >= 800) return 2;
     return 1;
   }
 
-  double _aspectRatioForWidth(double width) {
-    if (width >= 1400) return 1.25;
-    if (width >= 1080) return 1.2;
-    if (width >= 760) return 1.15;
-    return 1.4;
+  double _getAspectRatioForWidth(double width) {
+    if (width >= 1200) return 1.6;
+    if (width >= 800) return 1.45;
+    return 1.3;
   }
 }
 
 class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({required this.width});
+  const _DashboardHeader({required this.width, this.currentUser});
 
   final double width;
+  final User? currentUser;
 
   @override
   Widget build(BuildContext context) {
     final isCompact = width < 900;
+    final firstName = (currentUser?.nombre ?? '').trim();
+    final greetingName = firstName.isNotEmpty ? firstName.split(' ').first : 'Bienvenido';
+    final subtitle = currentUser != null
+        ? 'Gestiona tus módulos como ${currentUser!.rol.displayName} desde este panel centralizado.'
+        : 'Supervisa las operaciones clave desde un solo lugar.';
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -213,16 +250,16 @@ class _DashboardHeader extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF3D1F6E), Color(0xFF4C39A6)],
+          colors: [Color(0xFF4C39A6), Color(0xFF2C53A4)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF3D1F6E).withOpacity(0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
+            color: const Color(0xFF2C53A4).withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -237,7 +274,7 @@ class _DashboardHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Bienvenido a Aquatour CRM',
+                      'Hola, $greetingName 👋',
                       style: GoogleFonts.montserrat(
                         fontSize: isCompact ? 22 : 26,
                         fontWeight: FontWeight.w700,
@@ -246,7 +283,7 @@ class _DashboardHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Supervisa todas las operaciones desde un panel diseñado para ofrecerte rapidez y claridad.',
+                      subtitle,
                       style: GoogleFonts.montserrat(
                         fontSize: isCompact ? 13 : 15,
                         color: Colors.white.withOpacity(0.82),
@@ -288,58 +325,6 @@ class _DashboardHeader extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 28),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: const [
-              _HeaderChip(
-                icon: Icons.check_circle_rounded,
-                label: 'Módulos activos: 6',
-              ),
-              _HeaderChip(
-                icon: Icons.supervisor_account,
-                label: 'Usuarios conectados: 18',
-              ),
-              _HeaderChip(
-                icon: Icons.auto_graph,
-                label: 'Productividad semanal +12%',
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderChip extends StatelessWidget {
-  const _HeaderChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.16),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: Colors.white),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: GoogleFonts.montserrat(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
-          )
         ],
       ),
     );

@@ -37,13 +37,14 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
+          constraints: const BoxConstraints(minHeight: 140, maxHeight: 200),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             gradient: LinearGradient(
               colors: _isHovering
                   ? [
-                      const Color(0xFF3D1F6E).withOpacity(0.12),
-                      const Color(0xFF4C39A6).withOpacity(0.08),
+                      const Color(0xFF3D1F6E).withOpacity(0.10),
+                      const Color(0xFF4C39A6).withOpacity(0.06),
                     ]
                   : [
                       Colors.white,
@@ -54,16 +55,16 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(_isHovering ? 0.12 : 0.06),
-                blurRadius: _isHovering ? 18 : 12,
+                color: Colors.black.withOpacity(_isHovering ? 0.10 : 0.04),
+                blurRadius: _isHovering ? 14 : 10,
                 spreadRadius: 0,
-                offset: const Offset(0, 10),
+                offset: const Offset(0, 8),
               ),
             ],
             border: Border.all(
               color: _isHovering
-                  ? const Color(0xFFfdb913).withOpacity(0.6)
-                  : Colors.grey.withOpacity(0.2),
+                  ? const Color(0xFFfdb913).withOpacity(0.55)
+                  : Colors.grey.withOpacity(0.18),
             ),
           ),
           child: Material(
@@ -72,28 +73,27 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
               borderRadius: BorderRadius.circular(20),
               onTap: widget.onTap,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          height: 52,
-                          width: 52,
+                          height: 40,
+                          width: 40,
                           decoration: BoxDecoration(
                             color: const Color(0xFF3D1F6E).withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
                             widget.icon,
-                            size: 28,
+                            size: 22,
                             color: theme.primaryColor,
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,7 +104,7 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
                                     child: Text(
                                       widget.title,
                                       style: GoogleFonts.montserrat(
-                                        fontSize: 18,
+                                        fontSize: 15,
                                         fontWeight: FontWeight.w700,
                                         color: const Color(0xFF1F1F1F),
                                       ),
@@ -113,8 +113,8 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
                                   if (widget.badge != null)
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
+                                        horizontal: 6,
+                                        vertical: 3,
                                       ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFfdb913).withOpacity(0.18),
@@ -123,7 +123,7 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
                                       child: Text(
                                         widget.badge!,
                                         style: GoogleFonts.montserrat(
-                                          fontSize: 12,
+                                          fontSize: 10,
                                           fontWeight: FontWeight.w600,
                                           color: const Color(0xFFf7941e),
                                         ),
@@ -131,11 +131,11 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
                                     ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 4),
                               Text(
                                 widget.description,
                                 style: GoogleFonts.montserrat(
-                                  fontSize: 14,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                   color: const Color(0xFF5C5C5C),
                                 ),
@@ -145,17 +145,20 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.bottomRight,
                       child: TextButton.icon(
                         onPressed: widget.onTap,
                         style: TextButton.styleFrom(
                           foregroundColor: theme.primaryColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                           textStyle: GoogleFonts.montserrat(
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                        icon: const Icon(Icons.arrow_forward_rounded, size: 15),
                         label: const Text('Ir al módulo'),
                       ),
                     )
