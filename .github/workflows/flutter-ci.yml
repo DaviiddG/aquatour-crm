@@ -49,7 +49,9 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: flutter build web --release --dart-define=API_BASE_URL=${API_BASE_URL:-http://localhost:8080/api}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3
