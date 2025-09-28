@@ -76,17 +76,19 @@ class LimitedDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 520;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        titleSpacing: 24,
+        titleSpacing: isNarrow ? 16 : 24,
         title: Row(
           children: [
             Container(
-              height: 44,
-              width: 44,
+              height: isNarrow ? 38 : 44,
+              width: isNarrow ? 38 : 44,
               decoration: BoxDecoration(
                 color: const Color(0xFF3D1F6E).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(14),
@@ -120,21 +122,25 @@ class LimitedDashboardScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () async {
-              await StorageService().logout();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (Route<dynamic> route) => false,
-              );
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFf7941e),
-              textStyle: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+          if (isNarrow)
+            IconButton(
+              tooltip: 'Cerrar sesión',
+              onPressed: () => _handleLogout(context),
+              icon: const Icon(
+                Icons.logout_rounded,
+                color: Color(0xFFf7941e),
+              ),
+            )
+          else
+            TextButton.icon(
+              onPressed: () => _handleLogout(context),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFf7941e),
+                textStyle: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+              ),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text('Cerrar sesión'),
             ),
-            icon: const Icon(Icons.logout_rounded),
-            label: const Text('Cerrar sesión'),
-          ),
           const SizedBox(width: 12),
         ],
       ),
@@ -204,6 +210,15 @@ class LimitedDashboardScreen extends StatelessWidget {
     if (width >= 1200) return 1.6;
     if (width >= 800) return 1.45;
     return 1.3;
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    await StorageService().logout();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (Route<dynamic> route) => false,
+    );
   }
 }
 
