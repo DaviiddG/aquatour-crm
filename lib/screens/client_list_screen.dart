@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
+import 'package:aquatour/screens/client_edit_screen.dart';
+import 'package:aquatour/services/api_service.dart';
+import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/models/user.dart';
+
+enum _ClientFormResult { created, updated, none }
 
 class ClientListScreen extends StatefulWidget {
   const ClientListScreen({super.key, this.showAll = false});
@@ -12,44 +18,276 @@ class ClientListScreen extends StatefulWidget {
 }
 
 class _ClientListScreenState extends State<ClientListScreen> {
+  final List<Map<String, dynamic>> _clients = [];
+  bool _isLoading = true;
+  String? _token;
+  User? _currentUser;
+
+  double? _calculateAverageSatisfaction() {
+    if (_clients.isEmpty) return null;
+
+    double total = 0;
+    int count = 0;
+
+    for (final client in _clients) {
+      final value = client['satisfaccion'];
+      final num? parsed = value is num
+          ? value
+          : value != null
+              ? num.tryParse(value.toString())
+              : null;
+
+      final double normalized = (parsed ?? 3).toDouble().clamp(1, 5);
+      total += normalized;
+      count++;
+    }
+
+    if (count == 0) return null;
+    return total / count;
+  }
+
+  String _buildStarString(double average) {
+    final clamped = average.clamp(0, 5);
+    final filled = clamped.round().clamp(0, 5).toInt();
+    final buffer = StringBuffer();
+    for (var i = 0; i < filled; i++) {
+      buffer.write('★');
+    }
+    for (var i = filled; i < 5; i++) {
+      buffer.write('☆');
+    }
+    return buffer.toString();
+  }
+
   @override
   void initState() {
     super.initState();
+    _initializeData();
   }
 
-  void _openClientForm() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return _ClientFormSheet(
-          onSubmit: (data) {
-            Navigator.of(context).pop();
-            final firstName = data['nombreCompleto']?.toString().split(' ').first ?? 'cliente';
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Cliente $firstName registrado. (Integración pendiente)'),
-                backgroundColor: const Color(0xFF3D1F6E),
-              ),
-            );
-          },
+  Future<void> _initializeData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final storage = StorageService();
+      // Obtener token y usuario almacenados
+      _token = await StorageService.getToken();
+      final currentUser = await storage.getCurrentUser();
+
+      _currentUser = currentUser;
+
+      if (_token == null && currentUser == null) {
+        // No existe sesión activa, redirigir al login
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/login');
+        }
+        return;
+      }
+
+      // Cargar clientes desde la API incluso si el token es nulo (backend no exige aún auth)
+      await _loadClients();
+    } catch (e) {
+      print('Error inicializando datos: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar los datos: $e')),
         );
-      },
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadClients() async {
+    try {
+      final clients = await ApiService().getClients(_token);
+      final filteredClients = widget.showAll
+          ? clients
+          : clients.where((client) {
+              if (_currentUser == null) return false;
+              final rawId = client['id_usuario'] ?? client['idUsuario'] ?? client['usuario_id'];
+              if (rawId == null) return false;
+              final int? assignedId = rawId is num ? rawId.toInt() : int.tryParse(rawId.toString());
+              return assignedId == _currentUser!.idUsuario;
+            }).toList();
+      if (mounted) {
+        setState(() {
+          _clients.clear();
+          _clients.addAll(filteredClients.whereType<Map<String, dynamic>>());
+        });
+      }
+    } catch (e) {
+      print('Error cargando clientes: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar clientes: $e')),
+        );
+      }
+      // Si falla la API, usar datos de ejemplo como fallback
+      _clients.addAll([
+        {
+          'id': 1,
+          'nombres': 'Juan',
+          'apellidos': 'Pérez',
+          'email': 'juan@example.com',
+          'telefono': '987654321',
+          'fechaRegistro': DateTime.now().toIso8601String(),
+          'nombreAgente': 'Agente 1',
+        },
+      ]);
+    }
+  }
+
+  Future<void> _openClientForm({Map<String, dynamic>? clientData}) async {
+    final result = await Navigator.of(context).push<_ClientFormResult?>(
+      MaterialPageRoute(
+        builder: (context) => ClientEditScreen(
+          clientData: clientData != null ? ClientModel.fromJson(clientData) : null,
+          onSave: (ClientModel client) async {
+            try {
+              // Obtener el usuario autenticado para obtener su ID
+              final currentUser = await StorageService().getCurrentUser();
+              if (currentUser == null) {
+                throw Exception('Usuario no autenticado');
+              }
+
+              final clientMap = client.toJson();
+              clientMap['id_usuario'] = currentUser.idUsuario;
+
+              if (clientData == null) {
+                // Crear nuevo cliente
+                await ApiService().createClient(clientMap, _token);
+              } else {
+                // Actualizar cliente existente
+                final clientId = clientData['id'] ?? 0;
+                if (clientId == 0) {
+                  throw Exception('ID de cliente inválido');
+                }
+                await ApiService().updateClient(clientId, clientMap, _token);
+              }
+
+              // Recargar lista de clientes
+              await _loadClients();
+
+              if (context.mounted) {
+                Navigator.of(context).pop(
+                  clientData == null ? _ClientFormResult.created : _ClientFormResult.updated,
+                );
+              }
+            } catch (e) {
+              print('Error guardando cliente: $e');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: ${e.toString()}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                Navigator.of(context).pop(_ClientFormResult.none);
+              }
+            }
+          },
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (result == _ClientFormResult.created || result == _ClientFormResult.updated) {
+      final message = result == _ClientFormResult.created
+          ? 'Cliente creado exitosamente'
+          : 'Cliente actualizado exitosamente';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: const Color(0xFF3D1F6E),
+        ),
+      );
+    }
+  }
+
+  void _deleteClient(int id) {
+    if (id == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: ID de cliente inválido'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar Cliente'),
+        content: const Text('¿Estás seguro de que deseas eliminar este cliente?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                await ApiService().deleteClient(id, _token);
+
+                // Recargar lista de clientes
+                await _loadClients();
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cliente eliminado exitosamente'),
+                      backgroundColor: Color(0xFF3D1F6E),
+                    ),
+                  );
+                }
+              } catch (e) {
+                print('Error eliminando cliente: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+              Navigator.of(context).pop();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeClients = _clients.length;
+    final averageSatisfaction = _calculateAverageSatisfaction();
+    final satisfactionValue = averageSatisfaction != null
+        ? _buildStarString(averageSatisfaction)
+        : 'N/D';
+    final satisfactionDescription = averageSatisfaction != null
+        ? 'Promedio ${averageSatisfaction.toStringAsFixed(1)} / 5'
+        : 'Resultados de encuestas recientes.';
+
     final summaryCards = widget.showAll
-        ? const [
+        ? [
             _SummaryCard(
               icon: Icons.people_alt_rounded,
               label: 'Clientes totales',
-              value: '0',
+              value: activeClients.toString(),
               description: 'Consulta métricas por asesor y ciclo de vida.',
             ),
-            _SummaryCard(
+            const _SummaryCard(
               icon: Icons.insights_rounded,
               label: 'Conversiones',
               value: '0%',
@@ -58,28 +296,18 @@ class _ClientListScreenState extends State<ClientListScreen> {
             _SummaryCard(
               icon: Icons.sentiment_satisfied_alt_rounded,
               label: 'Satisfacción promedio',
-              value: 'N/D',
-              description: 'Resultados de encuestas recientes.',
+              value: satisfactionValue,
+              description: satisfactionDescription,
             ),
           ]
-        : const [
+        : [
             _SummaryCard(
               icon: Icons.person_pin_circle_rounded,
               label: 'Clientes activos',
-              value: '0',
-              description: 'Añade nuevos prospectos para iniciar tu cartera.',
-            ),
-            _SummaryCard(
-              icon: Icons.assignment_rounded,
-              label: 'Seguimientos',
-              value: '0',
-              description: 'Agenda contactos y documenta próximas acciones.',
-            ),
-            _SummaryCard(
-              icon: Icons.stars_rounded,
-              label: 'Oportunidades calientes',
-              value: '0',
-              description: 'Resalta prospectos con alta probabilidad de cierre.',
+              value: activeClients.toString(),
+              description: activeClients == 0
+                  ? 'Añade nuevos prospectos para iniciar tu cartera.'
+                  : '¡Excelente! Lleva ${activeClients == 1 ? '1 cliente' : '$activeClients clientes'} activos en tu cartera.',
             ),
           ];
 
@@ -92,7 +320,7 @@ class _ClientListScreenState extends State<ClientListScreen> {
       floatingActionButton: widget.showAll
           ? null
           : FloatingActionButton.extended(
-              onPressed: _openClientForm,
+              onPressed: () => _openClientForm(),
               icon: const Icon(Icons.person_add_alt_1),
               label: const Text('Nuevo cliente'),
               backgroundColor: const Color(0xFFf7941e),
@@ -114,85 +342,159 @@ class _ClientListScreenState extends State<ClientListScreen> {
                           ))
                       .toList(),
                 ),
-                const SizedBox(height: 24),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 18,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 26, 28, 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.showAll
-                              ? 'Próximas funcionalidades'
-                              : 'Registra y segmenta a tus clientes',
-                          style: GoogleFonts.montserrat(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF3D1F6E),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          widget.showAll
-                              ? 'Muy pronto se habilitarán filtros, dashboards comparativos y exportación de la cartera para coordinadores.'
-                              : 'Cada registro quedará vinculado a tu usuario y podrás agregar notas, preferencias y nivel de interés.',
-                          style: GoogleFonts.montserrat(fontSize: 14, height: 1.55, color: Colors.black87),
-                        ),
-                        const SizedBox(height: 22),
-                        Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF3D1F6E).withOpacity(0.08),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.people_outline_rounded, color: Color(0xFF3D1F6E), size: 38),
-                              ),
-                              const SizedBox(height: 18),
-                              Text(
-                                widget.showAll
-                                    ? 'Empieza asignando clientes a cada asesor.'
-                                    : 'Aún no tienes clientes registrados.',
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF1F1F1F),
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                widget.showAll
-                                    ? 'Sincroniza la base de prospectos para visualizar métricas consolidadas del equipo.'
-                                    : 'Registra tus primeros clientes desde el botón "Nuevo cliente" para comenzar tu cartera.',
-                                style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[700], height: 1.5),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                if (_clients.isEmpty) ...[
+                  const SizedBox(height: 24),
+                  _buildInfoSection(),
+                ] else ...[
+                  const SizedBox(height: 24),
+                  _buildClientList(),
+                ],
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildClientList() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'Mis Clientes',
+              style: GoogleFonts.montserrat(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF3D1F6E),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          ..._clients.map((client) => _buildClientItem(client)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClientItem(Map<String, dynamic> client) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      leading: CircleAvatar(
+        backgroundColor: const Color(0xFF3D1F6E).withOpacity(0.1),
+        child: Text(
+          (client['nombres']?.toString() ?? '?')[0].toUpperCase(),
+          style: const TextStyle(color: Color(0xFF3D1F6E), fontWeight: FontWeight.bold),
+        ),
+      ),
+      title: Text(
+        '${client['nombres'] ?? 'N/A'} ${client['apellidos'] ?? ''}',
+        style: GoogleFonts.montserrat(fontWeight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        client['email'] ?? 'Sin email',
+        style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[600]),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.edit, color: Color(0xFF3D1F6E)),
+            onPressed: () => _openClientForm(clientData: client),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () => _deleteClient(client['id'] ?? 0),
+          ),
+        ],
+      ),
+      onTap: () => _openClientForm(clientData: client),
+    );
+  }
+
+  Widget _buildInfoSection() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 26, 28, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.showAll ? 'Próximas funcionalidades' : 'Registra y segmenta a tus clientes',
+              style: GoogleFonts.montserrat(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF3D1F6E),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              widget.showAll
+                  ? 'Muy pronto se habilitarán filtros, dashboards comparativos y exportación de la cartera para coordinadores.'
+                  : 'Cada registro quedará vinculado a tu usuario y podrás agregar notas, preferencias y nivel de interés.',
+              style: GoogleFonts.montserrat(fontSize: 14, height: 1.55, color: Colors.black87),
+            ),
+            const SizedBox(height: 22),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3D1F6E).withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.people_outline_rounded, color: Color(0xFF3D1F6E), size: 38),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    widget.showAll ? 'Empieza asignando clientes a cada asesor.' : 'Aún no tienes clientes registrados.',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1F1F1F),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.showAll
+                        ? 'Sincroniza la base de prospectos para visualizar métricas consolidadas del equipo.'
+                        : 'Registra tus primeros clientes desde el botón "Nuevo cliente" para comenzar tu cartera.',
+                    style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[700], height: 1.5),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -289,6 +591,7 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
   final _telefonoController = TextEditingController();
   final _ciudadController = TextEditingController();
   final _paisController = TextEditingController();
+  final _nacionalidadController = TextEditingController();
   final _observacionesController = TextEditingController();
 
   DateTime? _fechaNacimiento;
@@ -302,6 +605,7 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
     _telefonoController.dispose();
     _ciudadController.dispose();
     _paisController.dispose();
+    _nacionalidadController.dispose();
     _observacionesController.dispose();
     super.dispose();
   }
@@ -324,16 +628,24 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
       return;
     }
 
+    // Dividir nombre completo en nombres y apellidos
+    final nombreCompleto = _nombreController.text.trim();
+    final partesNombre = nombreCompleto.split(' ');
+    final nombres = partesNombre.first;
+    final apellidos = partesNombre.length > 1 ? partesNombre.sublist(1).join(' ') : '';
+
     final data = <String, dynamic>{
-      'nombreCompleto': _nombreController.text.trim(),
+      'nombres': nombres,
+      'apellidos': apellidos,
       'email': _emailController.text.trim(),
       'telefono': _telefonoController.text.trim(),
-      'ciudad': _ciudadController.text.trim(),
-      'pais': _paisController.text.trim(),
-      'fechaNacimiento': _fechaNacimiento?.toIso8601String(),
-      'fuente': _fuente,
-      'interes': _interes,
-      'observaciones': _observacionesController.text.trim(),
+      'ciudad_residencia': _ciudadController.text.trim(),
+      'pais_residencia': _paisController.text.trim(),
+      'nacionalidad': _nacionalidadController.text.trim(),
+      'fecha_nacimiento': _fechaNacimiento?.toIso8601String(),
+      'estado_cliente': 'Potencial',
+      'fuente_cliente': _fuente,
+      'comentarios': _observacionesController.text.trim(),
     };
 
     widget.onSubmit(data);
@@ -479,7 +791,7 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
                       child: TextFormField(
                         controller: _ciudadController,
                         decoration: const InputDecoration(
-                          labelText: 'Ciudad',
+                          labelText: 'Ciudad de residencia',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -489,12 +801,20 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
                       child: TextFormField(
                         controller: _paisController,
                         decoration: const InputDecoration(
-                          labelText: 'País',
+                          labelText: 'País de residencia',
                           border: OutlineInputBorder(),
                         ),
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _nacionalidadController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nacionalidad',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -524,7 +844,7 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _fuente,
+                        initialValue: _fuente,
                         decoration: const InputDecoration(
                           labelText: 'Fuente de contacto *',
                           border: OutlineInputBorder(),
@@ -545,7 +865,7 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
-                  value: _interes,
+                  initialValue: _interes,
                   decoration: const InputDecoration(
                     labelText: 'Interés principal *',
                     border: OutlineInputBorder(),
