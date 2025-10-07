@@ -1,0 +1,561 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:aquatour/models/user.dart';
+import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/widgets/module_scaffold.dart';
+
+class UserEditScreen extends StatefulWidget {
+  const UserEditScreen({
+    super.key,
+    required this.user,
+    required this.storageService,
+    required this.onUpdated,
+    this.currentUser,
+  });
+
+  final User user;
+  final User? currentUser;
+  final StorageService storageService;
+  final Future<void> Function() onUpdated;
+
+  @override
+  State<UserEditScreen> createState() => _UserEditScreenState();
+}
+
+class _UserEditScreenState extends State<UserEditScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController _nombreController;
+  late final TextEditingController _apellidoController;
+  late final TextEditingController _telefonoController;
+  late final TextEditingController _direccionController;
+  late final TextEditingController _ciudadController;
+  late final TextEditingController _paisController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _numDocumentoController;
+  late final TextEditingController _passwordController;
+
+  late UserRole _rol;
+  late String _tipoDocumento;
+  late String _genero;
+  late DateTime _fechaNacimiento;
+  late bool _activo;
+  late final String _originalEmail;
+
+  bool _isSaving = false;
+
+  static const List<String> _documentTypes = ['CC', 'CE', 'TI', 'PP'];
+  static const List<String> _genders = ['Masculino', 'Femenino', 'Otro'];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+
+    _nombreController = TextEditingController(text: widget.user.nombre);
+    _apellidoController = TextEditingController(text: widget.user.apellido);
+    _telefonoController = TextEditingController(text: widget.user.telefono);
+    _direccionController = TextEditingController(text: widget.user.direccion);
+    _ciudadController = TextEditingController(text: widget.user.ciudadResidencia);
+    _paisController = TextEditingController(text: widget.user.paisResidencia);
+    _emailController = TextEditingController(text: widget.user.email);
+    _numDocumentoController =
+        TextEditingController(text: widget.user.numDocumento);
+    _passwordController = TextEditingController();
+
+    _rol = widget.user.rol;
+    _tipoDocumento = _documentTypes.contains(widget.user.tipoDocumento)
+        ? widget.user.tipoDocumento
+        : 'CC';
+    _genero = _genders.contains(widget.user.genero)
+        ? widget.user.genero
+        : 'Otro';
+    _fechaNacimiento = widget.user.fechaNacimiento;
+    _activo = widget.user.activo;
+    _originalEmail = widget.user.email;
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _nombreController.dispose();
+    _apellidoController.dispose();
+    _telefonoController.dispose();
+    _direccionController.dispose();
+    _ciudadController.dispose();
+    _paisController.dispose();
+    _emailController.dispose();
+    _numDocumentoController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  bool get _canEditRole => widget.currentUser?.esSuperAdministrador ?? false;
+
+  bool get _emailChanged =>
+      _emailController.text.trim().toLowerCase() !=
+      _originalEmail.trim().toLowerCase();
+
+  Future<void> _saveChanges() async {
+    FocusScope.of(context).unfocus();
+
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Revisa los campos marcados antes de continuar.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (_emailChanged) {
+      final exists = await widget.storageService.emailExists(
+        _emailController.text.trim(),
+        excludeUserId: widget.user.idUsuario,
+      );
+      if (exists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('El correo ingresado ya está en uso.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    setState(() => _isSaving = true);
+
+    final updatedUser = widget.user.copyWith(
+      nombre: _nombreController.text.trim(),
+      apellido: _apellidoController.text.trim(),
+      telefono: _telefonoController.text.trim(),
+      direccion: _direccionController.text.trim(),
+      ciudadResidencia: _ciudadController.text.trim(),
+      paisResidencia: _paisController.text.trim(),
+      email: _emailController.text.trim(),
+      numDocumento: _numDocumentoController.text.trim(),
+      tipoDocumento: _tipoDocumento,
+      genero: _genero,
+      fechaNacimiento: _fechaNacimiento,
+      rol: _rol,
+      activo: _activo,
+      contrasena: _passwordController.text.isEmpty
+          ? widget.user.contrasena
+          : _passwordController.text,
+      updatedAt: DateTime.now(),
+    );
+
+    try {
+      final success = await widget.storageService.updateUser(updatedUser);
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+
+      if (success) {
+        await widget.onUpdated();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Usuario actualizado correctamente.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No fue posible actualizar el usuario.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error actualizando usuario: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ModuleScaffold(
+      title: 'Editar usuario',
+      subtitle: widget.user.nombreCompleto,
+      icon: Icons.manage_accounts_rounded,
+      actions: [
+        TextButton.icon(
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.close_rounded),
+          label: const Text('Cerrar'),
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  indicatorColor: const Color(0xFF3D1F6E),
+                  labelColor: const Color(0xFF3D1F6E),
+                  unselectedLabelColor: Colors.grey,
+                  labelStyle: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  tabs: const [
+                    Tab(text: 'Perfil'),
+                    Tab(text: 'Identificación'),
+                    Tab(text: 'Contacto'),
+                    Tab(text: 'Credenciales'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Expanded(
+            child: Form(
+              key: _formKey,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildPerfilTab(),
+                  _buildIdentificacionTab(),
+                  _buildContactoTab(),
+                  _buildCredencialesTab(),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 12,
+              children: [
+                OutlinedButton(
+                  onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: _isSaving ? null : _saveChanges,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_rounded),
+                  label: Text(_isSaving ? 'Guardando...' : 'Guardar cambios'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPerfilTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSectionTitle('Información de perfil'),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _nombreController,
+            decoration: const InputDecoration(
+              labelText: 'Nombre *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) =>
+                value == null || value.isEmpty ? 'Ingresa el nombre.' : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _apellidoController,
+            decoration: const InputDecoration(
+              labelText: 'Apellido *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) =>
+                value == null || value.isEmpty ? 'Ingresa el apellido.' : null,
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<UserRole>(
+            value: _rol,
+            decoration: const InputDecoration(
+              labelText: 'Rol',
+              border: OutlineInputBorder(),
+            ),
+            items: UserRole.values
+                .map(
+                  (role) => DropdownMenuItem<UserRole>(
+                    value: role,
+                    child: Text(role.displayName),
+                  ),
+                )
+                .toList(),
+            onChanged: _canEditRole
+                ? (value) {
+                    if (value != null) {
+                      setState(() => _rol = value);
+                    }
+                  }
+                : null,
+          ),
+          const SizedBox(height: 16),
+          SwitchListTile.adaptive(
+            value: _activo,
+            title: const Text('Usuario activo'),
+            contentPadding: EdgeInsets.zero,
+            onChanged: (value) => setState(() => _activo = value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIdentificacionTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSectionTitle('Documentos e identificación'),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _tipoDocumento,
+            decoration: const InputDecoration(
+              labelText: 'Tipo de documento',
+              border: OutlineInputBorder(),
+            ),
+            items: _documentTypes
+                .map(
+                  (value) => DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _tipoDocumento = value);
+              }
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _numDocumentoController,
+            decoration: const InputDecoration(
+              labelText: 'Número de documento *',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Ingresa el número de documento.';
+              }
+              if (int.tryParse(value) == null) {
+                return 'Solo se permiten números.';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          InkWell(
+            onTap: () async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate: _fechaNacimiento,
+                firstDate: DateTime(1900),
+                lastDate: DateTime.now(),
+              );
+              if (date != null) {
+                setState(() => _fechaNacimiento = date);
+              }
+            },
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Fecha de nacimiento *',
+                border: OutlineInputBorder(),
+              ),
+              child: Text(
+                '${_fechaNacimiento.day.toString().padLeft(2, '0')}/'
+                '${_fechaNacimiento.month.toString().padLeft(2, '0')}/'
+                '${_fechaNacimiento.year}',
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _genero,
+            decoration: const InputDecoration(
+              labelText: 'Género',
+              border: OutlineInputBorder(),
+            ),
+            items: _genders
+                .map(
+                  (value) => DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _genero = value);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactoTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSectionTitle('Datos de contacto'),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _telefonoController,
+            decoration: const InputDecoration(
+              labelText: 'Teléfono *',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Ingresa el teléfono.';
+              }
+              final phoneRegExp = RegExp(r'^\+?[0-9\s]+$');
+              if (!phoneRegExp.hasMatch(value)) {
+                return 'Formato de teléfono no válido.';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _direccionController,
+            decoration: const InputDecoration(
+              labelText: 'Dirección *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) =>
+                value == null || value.isEmpty ? 'Ingresa la dirección.' : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _ciudadController,
+            decoration: const InputDecoration(
+              labelText: 'Ciudad *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) =>
+                value == null || value.isEmpty ? 'Ingresa la ciudad.' : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _paisController,
+            decoration: const InputDecoration(
+              labelText: 'País *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) =>
+                value == null || value.isEmpty ? 'Ingresa el país.' : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCredencialesTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSectionTitle('Credenciales de acceso'),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _emailController,
+            decoration: const InputDecoration(
+              labelText: 'Correo electrónico *',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.emailAddress,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Ingresa el correo electrónico.';
+              }
+              final emailRegExp = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+              if (!emailRegExp.hasMatch(value)) {
+                return 'Formato de correo no válido.';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _passwordController,
+            decoration: const InputDecoration(
+              labelText: 'Nueva contraseña (opcional)',
+              border: OutlineInputBorder(),
+              helperText:
+                  'Deja vacío si deseas mantener la contraseña actual.',
+            ),
+            obscureText: true,
+            validator: (value) {
+              if (value != null && value.isNotEmpty && value.length < 6) {
+                return 'Debe tener al menos 6 caracteres.';
+              }
+              return null;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: GoogleFonts.montserrat(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: const Color(0xFF3D1F6E),
+      ),
+    );
+  }
+}

@@ -10,8 +10,12 @@ import 'reservations_screen.dart';
 import 'user_management_screen.dart';
 import 'services/storage_service.dart';
 import 'widgets/dashboard_option_card.dart';
+import 'screens/client_list_screen.dart';
+import 'screens/destinations_screen.dart';
+import 'screens/tour_packages_screen.dart';
 
 class DashboardModule {
+  final String id;
   final String title;
   final String description;
   final IconData icon;
@@ -20,6 +24,7 @@ class DashboardModule {
   final List<UserRole> allowedRoles;
 
   const DashboardModule({
+    required this.id,
     required this.title,
     required this.description,
     required this.icon,
@@ -33,42 +38,30 @@ class DashboardModule {
   });
 }
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final StorageService _storageService = StorageService();
+  User? _activeUser;
+  List<DashboardModule> _modules = [];
+  bool _loadingModules = false;
 
   List<DashboardModule> _getModulesForUser(User user) {
     final modules = <DashboardModule>[
       DashboardModule(
+        id: 'indicators',
         title: 'Indicadores',
         description: 'Métricas clave del negocio y desempeño del equipo.',
         icon: Icons.analytics_rounded,
         builder: (context) => const PerformanceIndicatorsScreen(),
       ),
       DashboardModule(
-        title: 'Contactos',
-        description: 'Base de clientes y prospectos asignados.',
-        icon: Icons.people_alt_rounded,
-        builder: (context) => const ContactsScreen(),
-      ),
-      DashboardModule(
-        title: 'Empresas',
-        description: 'Directorio de compañías con las que colaboramos.',
-        icon: Icons.business_rounded,
-        builder: (context) => const CompaniesScreen(),
-      ),
-      DashboardModule(
-        title: 'Cotizaciones',
-        description: 'Prepara y da seguimiento a propuestas comerciales.',
-        icon: Icons.request_quote_rounded,
-        builder: (context) => const QuotesScreen(),
-      ),
-      DashboardModule(
-        title: 'Reservas',
-        description: 'Gestiona reservas y estado de viajes confirmados.',
-        icon: Icons.event_available_rounded,
-        builder: (context) => const ReservationsScreen(),
-      ),
-      DashboardModule(
+        id: 'users',
         title: 'Usuarios',
         description: 'Administra credenciales, roles y accesos.',
         icon: Icons.admin_panel_settings_rounded,
@@ -76,9 +69,140 @@ class DashboardScreen extends StatelessWidget {
         builder: (context) => const UserManagementScreen(),
         allowedRoles: const [UserRole.administrador, UserRole.superadministrador],
       ),
+      DashboardModule(
+        id: 'clients',
+        title: 'Clientes',
+        description: 'Gestiona la cartera completa del equipo y asignaciones.',
+        icon: Icons.people_outline_rounded,
+        builder: (context) => const ClientListScreen(showAll: true),
+        allowedRoles: const [UserRole.administrador, UserRole.superadministrador],
+      ),
+      DashboardModule(
+        id: 'contacts',
+        title: 'Contactos',
+        description: 'Base de clientes y prospectos asignados.',
+        icon: Icons.people_alt_rounded,
+        builder: (context) => const ContactsScreen(),
+      ),
+      DashboardModule(
+        id: 'destinations',
+        title: 'Destinos',
+        description: 'Explora destinos y materiales para personalizar experiencias.',
+        icon: Icons.flight_takeoff_rounded,
+        builder: (context) => const DestinationsScreen(),
+        allowedRoles: const [UserRole.administrador, UserRole.superadministrador],
+      ),
+      DashboardModule(
+        id: 'packages',
+        title: 'Paquetes turísticos',
+        description: 'Centraliza paquetes base y promociones para el equipo.',
+        icon: Icons.card_travel_rounded,
+        builder: (context) => const TourPackagesScreen(),
+        allowedRoles: const [UserRole.administrador, UserRole.superadministrador],
+      ),
+      DashboardModule(
+        id: 'quotes',
+        title: 'Cotizaciones',
+        description: 'Prepara y da seguimiento a propuestas comerciales.',
+        icon: Icons.request_quote_rounded,
+        builder: (context) => const QuotesScreen(),
+      ),
+      DashboardModule(
+        id: 'reservations',
+        title: 'Reservas',
+        description: 'Gestiona reservas y estado de viajes confirmados.',
+        icon: Icons.event_available_rounded,
+        builder: (context) => const ReservationsScreen(),
+      ),
+      DashboardModule(
+        id: 'companies',
+        title: 'Empresas',
+        description: 'Directorio de compañías con las que colaboramos.',
+        icon: Icons.business_rounded,
+        builder: (context) => const CompaniesScreen(),
+      ),
     ];
 
     return modules.where((module) => module.allowedRoles.contains(user.rol)).toList();
+  }
+
+  List<DashboardModule> _applyStoredOrder(
+    List<DashboardModule> modules,
+    List<String> storedOrder,
+  ) {
+    if (storedOrder.isEmpty) {
+      return modules;
+    }
+
+    final moduleMap = {for (final module in modules) module.id: module};
+    final ordered = <DashboardModule>[];
+
+    for (final id in storedOrder) {
+      final module = moduleMap.remove(id);
+      if (module != null) {
+        ordered.add(module);
+      }
+    }
+
+    ordered.addAll(moduleMap.values);
+    return ordered;
+  }
+
+  String _orderKeyForUser(User user) {
+    final identifier = user.idUsuario?.toString().trim();
+    if (identifier != null && identifier.isNotEmpty) {
+      return identifier;
+    }
+    return user.email;
+  }
+
+  void _ensureModulesLoaded(User user) {
+    final sameUser = _activeUser?.idUsuario == user.idUsuario;
+    if (sameUser && (_modules.isNotEmpty || _loadingModules)) {
+      return;
+    }
+
+    _activeUser = user;
+    if (!_loadingModules) {
+      _loadingModules = true;
+      Future.microtask(() {
+        if (!mounted) return;
+        setState(() {});
+      });
+    }
+
+    final userKey = _orderKeyForUser(user);
+    Future.microtask(() async {
+      final modules = _getModulesForUser(user);
+      final storedOrder = await _storageService.getDashboardOrder(userKey);
+      if (!mounted) return;
+      setState(() {
+        _modules = _applyStoredOrder(modules, storedOrder);
+        _loadingModules = false;
+      });
+    });
+  }
+
+  void _handleReorder(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+
+    final updated = List<DashboardModule>.from(_modules);
+    final item = updated.removeAt(oldIndex);
+    updated.insert(newIndex, item);
+
+    setState(() {
+      _modules = updated;
+    });
+
+    final user = _activeUser;
+    if (user != null) {
+      _storageService.saveDashboardOrder(
+        _orderKeyForUser(user),
+        updated.map((module) => module.id).toList(),
+      );
+    }
   }
 
   @override
@@ -129,7 +253,7 @@ class DashboardScreen extends StatelessWidget {
         actions: [
           TextButton.icon(
             onPressed: () async {
-              await StorageService().logout();
+              await _storageService.logout();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (Route<dynamic> route) => false,
@@ -147,7 +271,7 @@ class DashboardScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: FutureBuilder<User?>(
-          future: StorageService().getCurrentUser(),
+          future: _storageService.getCurrentUser(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -158,73 +282,71 @@ class DashboardScreen extends StatelessWidget {
             }
 
             final user = snapshot.data!;
-            final modules = _getModulesForUser(user);
+            _ensureModulesLoaded(user);
+            final modules = _modules;
+            final width = MediaQuery.of(context).size.width;
 
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final crossAxisCount = _getColumnsForWidth(width);
-                final cardAspectRatio = _getAspectRatioForWidth(width);
-
-                return CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                        child: _DashboardHeader(
-                          width: width,
-                          currentUser: user,
-                        ),
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                  child: _DashboardHeader(
+                    width: width,
+                    currentUser: user,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Mantén presionado y arrastra para ordenar tus módulos.',
+                      style: GoogleFonts.montserrat(
+                        fontSize: 11,
+                        color: const Color(0xFF6F6F6F),
                       ),
                     ),
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: 18,
-                          mainAxisSpacing: 16,
-                          childAspectRatio: cardAspectRatio,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final module = modules[index];
-                            return DashboardOptionCard(
-                              title: module.title,
-                              description: module.description,
-                              icon: module.icon,
-                              badge: module.badge,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: module.builder),
-                              ),
-                            );
-                          },
-                          childCount: modules.length,
-                        ),
-                      ),
-                    ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                  ],
-                );
-              },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _loadingModules && modules.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : modules.isEmpty
+                          ? const Center(child: Text('No tienes módulos disponibles.'))
+                          : ReorderableListView.builder(
+                              buildDefaultDragHandles: false,
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                              itemCount: modules.length,
+                              onReorder: _handleReorder,
+                              itemBuilder: (context, index) {
+                                final module = modules[index];
+                                return Padding(
+                                  key: ValueKey(module.id),
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: ReorderableDelayedDragStartListener(
+                                    index: index,
+                                    child: DashboardOptionCard(
+                                      title: module.title,
+                                      description: module.description,
+                                      icon: module.icon,
+                                      badge: module.badge,
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(builder: module.builder),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                ),
+              ],
             );
           },
         ),
       ),
     );
-  }
-
-  int _getColumnsForWidth(double width) {
-    if (width >= 1200) return 3;
-    if (width >= 800) return 2;
-    return 1;
-  }
-
-  double _getAspectRatioForWidth(double width) {
-    if (width >= 1200) return 1.6;
-    if (width >= 800) return 1.45;
-    return 1.3;
   }
 }
 

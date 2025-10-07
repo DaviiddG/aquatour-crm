@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/models/contact.dart';
 import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/widgets/module_scaffold.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});
@@ -205,103 +206,206 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Contactos'),
-        backgroundColor: const Color(0xFF3D1F6E),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadContacts,
+    return ModuleScaffold(
+      title: 'Contactos',
+      subtitle: 'Administra la agenda de clientes y prospectos',
+      icon: Icons.contacts_rounded,
+      actions: [
+        IconButton(
+          tooltip: 'Refrescar',
+          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF3D1F6E)),
+          onPressed: _loadContacts,
+        ),
+      ],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddContactDialog,
+        backgroundColor: const Color(0xFFf7941e),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Nuevo contacto'),
+      ),
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _contacts.isEmpty
+              ? _EmptyState(onRefresh: _loadContacts)
+              : ListView.separated(
+                  itemCount: _contacts.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    final contact = _contacts[index];
+                    return _ContactCard(
+                      contact: contact,
+                      onDelete: () => _deleteContact(contact),
+                    );
+                  },
+                ),
+    );
+  }
+}
+
+class _ContactCard extends StatelessWidget {
+  const _ContactCard({
+    required this.contact,
+    required this.onDelete,
+  });
+
+  final Contact contact;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
+        border: Border.all(color: Colors.grey.withOpacity(0.15)),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : _contacts.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 52,
+              width: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xFF3D1F6E).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(
+                  contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF3D1F6E),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Icon(
-                        Icons.contacts,
-                        size: 80,
-                        color: Colors.grey,
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'No hay contactos',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey,
+                      Expanded(
+                        child: Text(
+                          contact.name,
+                          style: GoogleFonts.montserrat(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF1F1F1F),
+                          ),
                         ),
                       ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Agrega tu primer contacto usando el botón +',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
+                      IconButton(
+                        tooltip: 'Eliminar contacto',
+                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                        onPressed: onDelete,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.email_outlined, size: 16, color: Color(0xFF6F6F6F)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          contact.email,
+                          style: GoogleFonts.montserrat(fontSize: 13, color: const Color(0xFF5C5C5C)),
                         ),
                       ),
                     ],
                   ),
-                )
-              : ListView.builder(
-                  itemCount: _contacts.length,
-                  itemBuilder: (context, index) {
-                    final contact = _contacts[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.phone_rounded, size: 16, color: Color(0xFF6F6F6F)),
+                      const SizedBox(width: 6),
+                      Text(
+                        contact.phone,
+                        style: GoogleFonts.montserrat(fontSize: 13, color: const Color(0xFF5C5C5C)),
                       ),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF3D1F6E),
-                          child: Text(
-                            contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          contact.name,
-                          style: GoogleFonts.montserrat(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(contact.email),
-                            Text(contact.phone),
-                            Text(
-                              contact.company,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFFfdb913),
-                              ),
-                            ),
-                          ],
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteContact(contact),
-                        ),
-                        isThreeLine: true,
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFfdb913).withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      contact.company,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFf7941e),
                       ),
-                    );
-                  },
-                ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddContactDialog,
-        backgroundColor: const Color(0xFFfdb913),
-        child: const Icon(Icons.add),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.onRefresh});
+
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            height: 120,
+            width: 120,
+            decoration: BoxDecoration(
+              color: const Color(0xFF3D1F6E).withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.contacts_outlined, size: 54, color: Color(0xFF3D1F6E)),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Aún no tienes contactos registrados',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Crea tu primer contacto para comenzar a organizar tu cartera de clientes.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.montserrat(fontSize: 13, color: const Color(0xFF6F6F6F)),
+          ),
+          const SizedBox(height: 22),
+          FilledButton.tonalIcon(
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Actualizar'),
+            onPressed: onRefresh,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF3D1F6E).withOpacity(0.08),
+              foregroundColor: const Color(0xFF3D1F6E),
+            ),
+          ),
+        ],
       ),
     );
   }

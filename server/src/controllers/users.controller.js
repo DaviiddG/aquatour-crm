@@ -34,7 +34,8 @@ export const getUserById = async (req, res, next) => {
 export const checkEmail = async (req, res, next) => {
   try {
     const { email } = req.params;
-    const user = await findByEmail(email);
+    const { exclude } = req.query;
+    const user = await findByEmail(email, exclude);
     res.json({ ok: true, exists: Boolean(user) });
   } catch (error) {
     next(error);

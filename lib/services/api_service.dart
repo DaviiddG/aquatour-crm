@@ -220,8 +220,10 @@ class ApiService {
   }
 
   // Verificar si email existe
-  Future<Map<String, dynamic>> checkEmailExists(String email, {String? token}) async {
-    final response = await _get('/users/check-email/$email', token: token);
+  Future<Map<String, dynamic>> checkEmailExists(String email, {String? token, int? excludeUserId}) async {
+    final sanitizedEmail = Uri.encodeComponent(email);
+    final query = excludeUserId != null ? '?exclude=$excludeUserId' : '';
+    final response = await _get('/users/check-email/$sanitizedEmail$query', token: token);
     return response;
   }
 

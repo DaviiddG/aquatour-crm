@@ -91,12 +91,20 @@ const resolveRoleId = async (roleApp) => {
   return rows[0]?.id_rol ?? null;
 };
 
-export const findByEmail = async (email) => {
+export const findByEmail = async (email, excludeId) => {
+  const params = [email];
+  let whereClause = 'u.correo = ?';
+
+  if (excludeId) {
+    whereClause += ' AND u.id_usuario <> ?';
+    params.push(excludeId);
+  }
+
   const [rows] = await query(
     `${baseSelect}
-     WHERE u.correo = ?
+     WHERE ${whereClause}
      LIMIT 1`,
-    [email]
+    params
   );
   return mapDbUser(rows[0]) ?? null;
 };

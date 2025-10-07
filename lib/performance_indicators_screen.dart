@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/storage_service.dart';
 import '../models/user.dart';
+import '../widgets/module_scaffold.dart';
 
 class PerformanceIndicatorsScreen extends StatefulWidget {
   const PerformanceIndicatorsScreen({super.key});
@@ -25,6 +26,37 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
   void initState() {
     super.initState();
     _initializeView();
+  }
+
+  Widget _buildChartsGrid(bool isWide) {
+    final chartCards = [
+      _buildSalesChart(),
+      _buildReservationsChart(),
+      _buildQuotesChart(),
+    ];
+
+    if (isWide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: chartCards[0]),
+          const SizedBox(width: 18),
+          Expanded(child: chartCards[1]),
+          const SizedBox(width: 18),
+          Expanded(child: chartCards[2]),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        chartCards[0],
+        const SizedBox(height: 18),
+        chartCards[1],
+        const SizedBox(height: 18),
+        chartCards[2],
+      ],
+    );
   }
 
   bool get _isManagerView => _currentUser?.esAdministrador ?? false;
@@ -117,16 +149,18 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Indicadores de Desempeño',
-          style: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+    return ModuleScaffold(
+      title: 'Indicadores de desempeño',
+      subtitle: 'Visualiza métricas clave y compara el rendimiento del equipo',
+      icon: Icons.analytics_rounded,
+      actions: [
+        IconButton(
+          tooltip: 'Actualizar métricas',
+          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF3D1F6E)),
+          onPressed: _selectedUserId == null ? null : () => _onEmployeeChanged(_selectedUserId!),
         ),
-        backgroundColor: const Color(0xFF3D1F6E),
-        elevation: 0,
-      ),
-      body: _isLoading
+      ],
+      child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _buildContent(),
     );
@@ -152,54 +186,40 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
       );
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_isManagerView) _buildEmployeeSelector(),
-          if (_isManagerView) const SizedBox(height: 16),
-
-          // Header con resumen
-          _buildSummaryCard(_selectedEmployeeName),
-
-          const SizedBox(height: 24),
-
-          // Gráficos
-          Text(
-            'Análisis de Rendimiento',
-            style: GoogleFonts.montserrat(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF3D1F6E),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 1180;
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_isManagerView) ...[
+                  _buildEmployeeSelector(),
+                  const SizedBox(height: 18),
+                ],
+                _buildSummaryBanner(_selectedEmployeeName),
+                const SizedBox(height: 24),
+                Text(
+                  'Análisis de rendimiento',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1F1F1F),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildChartsGrid(isWide),
+                const SizedBox(height: 24),
+                _buildDetailedMetrics(),
+                const SizedBox(height: 24),
+                _buildClientsSection(),
+              ],
             ),
           ),
-
-          const SizedBox(height: 16),
-
-          // Gráfico de ventas
-          _buildSalesChart(),
-
-          const SizedBox(height: 24),
-
-          // Gráfico de reservas
-          _buildReservationsChart(),
-
-          const SizedBox(height: 24),
-
-          // Gráfico de cotizaciones
-          _buildQuotesChart(),
-
-          const SizedBox(height: 24),
-
-          // Métricas detalladas
-          _buildDetailedMetrics(),
-
-          const SizedBox(height: 24),
-
-          _buildClientsSection(),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -217,55 +237,71 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     return _currentUser?.nombreCompleto;
   }
 
-  Widget _buildSummaryCard(String? employeeName) {
+  Widget _buildSummaryBanner(String? employeeName) {
     final sales = _metrics['sales'] ?? {};
     final reservations = _metrics['reservations'] ?? {};
     final quotes = _metrics['quotes'] ?? {};
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF3D1F6E), Color(0xFF2C53A4)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4C39A6), Color(0xFF2C53A4)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2C53A4).withOpacity(0.22),
+            blurRadius: 26,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.trending_up, color: Colors.white, size: 28),
-                const SizedBox(width: 12),
-                Text(
-                  'Resumen del Mes',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                Container(
+                  height: 54,
+                  width: 54,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.trending_up_rounded, color: Colors.white, size: 30),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        employeeName ?? 'Rendimiento general',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Resumen mensual de ventas, reservas y cotizaciones',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.85),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            if (employeeName != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                employeeName,
-                style: GoogleFonts.montserrat(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.85),
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             Row(
               children: [
                 _buildSummaryItem(
@@ -276,12 +312,12 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                 _buildSummaryItem(
                   'Reservas',
                   '${reservations['confirmed'] ?? 0}/${reservations['total'] ?? 0}',
-                  Icons.book_online,
+                  Icons.event_available_rounded,
                 ),
                 _buildSummaryItem(
                   'Cotizaciones',
                   '${quotes['accepted'] ?? 0}/${quotes['total'] ?? 0}',
-                  Icons.request_quote,
+                  Icons.request_quote_rounded,
                 ),
               ],
             ),

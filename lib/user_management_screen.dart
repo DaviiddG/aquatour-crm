@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/models/user.dart';
 import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/widgets/module_scaffold.dart';
+import 'package:aquatour/user_edit_screen.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -99,6 +101,31 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         );
       }
     }
+  }
+
+  Future<void> _openEditScreen(User user) async {
+    if (!_canEditUser(user)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No puedes editar usuarios con un rol igual o superior al tuyo'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => UserEditScreen(
+          user: user,
+          currentUser: _currentUser,
+          storageService: _storageService,
+          onUpdated: () async {
+            await _loadUsers();
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _showUserDialog({User? userToEdit}) async {
@@ -557,6 +584,45 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final canManage = _currentUser?.puedeGestionarUsuarios == true;
+
+    return ModuleScaffold(
+      title: 'Gestión de usuarios',
+      subtitle: 'Administra credenciales, roles y estado del equipo',
+      icon: Icons.admin_panel_settings_rounded,
+      actions: [
+        IconButton(
+          tooltip: 'Actualizar lista',
+          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF3D1F6E)),
+          onPressed: _loadUsers,
+        ),
+      ],
+      floatingActionButton: canManage
+          ? FloatingActionButton.extended(
+              onPressed: () => _showUserDialog(),
+              backgroundColor: const Color(0xFFf7941e),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Nuevo usuario'),
+            )
+          : null,
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _users.isEmpty
+              ? _EmptyUsersState(onCreate: canManage ? () => _showUserDialog() : null)
+              : _UserBoard(
+                  currentUser: _currentUser,
+                  users: _users,
+                  roleColorResolver: _getRoleColor,
+                  canEdit: _canEditUser,
+                  canDelete: _canDeleteUser,
+                  onEdit: (user) => _openEditScreen(user),
+                  onDelete: (user) => _deleteUser(user),
+                ),
+    );
+  }
+
   Future<void> _deleteUser(User user) async {
     if (_currentUser?.puedeGestionarUsuarios != true) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -613,7 +679,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       try {
         await _storageService.deleteUser(user.idUsuario!);
         await _loadUsers();
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -638,228 +704,376 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Color _getRoleColor(UserRole role) {
     switch (role) {
       case UserRole.superadministrador:
-        return const Color(0xFF3D1F6E); // Morado oscuro de Aquatour
+        return const Color(0xFF3D1F6E);
       case UserRole.administrador:
-        return const Color(0xFFfdb913); // Amarillo de Aquatour
+        return const Color(0xFFfdb913);
       case UserRole.empleado:
-        return Colors.grey; // Gris para empleados
+        return const Color(0xFF4B4B4B);
     }
   }
+}
+
+class _UserBoard extends StatelessWidget {
+  const _UserBoard({
+    required this.currentUser,
+    required this.users,
+    required this.roleColorResolver,
+    required this.canEdit,
+    required this.canDelete,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final User? currentUser;
+  final List<User> users;
+  final Color Function(UserRole) roleColorResolver;
+  final bool Function(User?) canEdit;
+  final bool Function(User) canDelete;
+  final void Function(User) onEdit;
+  final void Function(User) onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gestión de Usuarios'),
-        backgroundColor: const Color(0xFF3D1F6E),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadUsers,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth >= 1280
+            ? 3
+            : constraints.maxWidth >= 900
+                ? 2
+                : 1;
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _CurrentUserBanner(currentUser: currentUser, totalUsers: users.length),
+              const SizedBox(height: 24),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: users.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 18,
+                  mainAxisSpacing: 18,
+                  childAspectRatio: crossAxisCount == 1 ? 16 / 9 : 18 / 10,
+                ),
+                itemBuilder: (context, index) {
+                  final user = users[index];
+                  return _UserCard(
+                    user: user,
+                    roleColor: roleColorResolver(user.rol),
+                    canEdit: canEdit(user),
+                    canDelete: canDelete(user),
+                    onEdit: () => onEdit(user),
+                    onDelete: () => onDelete(user),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UserCard extends StatelessWidget {
+  const _UserCard({
+    required this.user,
+    required this.roleColor,
+    required this.canEdit,
+    required this.canDelete,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final User user;
+  final Color roleColor;
+  final bool canEdit;
+  final bool canDelete;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasEditAction = canEdit && onEdit != null;
+    final hasDeleteAction = canDelete && onDelete != null;
+    final actionButtons = <Widget>[
+      if (hasEditAction)
+        IconButton(
+          tooltip: 'Editar usuario',
+          icon: const Icon(Icons.edit_rounded, color: Color(0xFF2C53A4)),
+          onPressed: onEdit,
+        ),
+      if (hasDeleteAction)
+        IconButton(
+          tooltip: 'Eliminar usuario',
+          icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFB3261E)),
+          onPressed: onDelete,
+        ),
+    ];
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 10),
           ),
         ],
+        border: Border.all(color: Colors.grey.withOpacity(0.15)),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : _users.isEmpty
-              ? const Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: roleColor.withOpacity(0.12),
+                  child: Text(
+                    user.nombre.isNotEmpty ? user.nombre[0].toUpperCase() : '?',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: roleColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.people,
-                        size: 80,
-                        color: Colors.grey,
-                      ),
-                      SizedBox(height: 16),
                       Text(
-                        'No hay usuarios registrados',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey,
+                        user.nombreCompleto,
+                        style: GoogleFonts.montserrat(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1F1F1F),
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Text(
-                        'Agrega el primer usuario usando el botón +',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
+                        user.email,
+                        style: GoogleFonts.montserrat(fontSize: 12, color: const Color(0xFF6F6F6F)),
                       ),
                     ],
                   ),
-                )
-              : ListView.builder(
-                  itemCount: _users.length,
-                  itemBuilder: (context, index) {
-                    final user = _users[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: ExpansionTile(
-                        leading: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: _getRoleColor(user.rol),
-                              child: Text(
-                                user.nombre.isNotEmpty ? user.nombre[0].toUpperCase() : '?',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            if (!user.activo)
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.close, color: Colors.white, size: 8),
-                                ),
-                              ),
-                          ],
-                        ),
-                        title: Text(
-                          user.nombreCompleto,
-                          style: GoogleFonts.montserrat(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(user.email, style: const TextStyle(color: Colors.grey)),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: _getRoleColor(user.rol),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    user.rol.displayName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text('${user.tipoDocumento}: ${user.numDocumento} • ${user.edad} años'),
-                              ],
-                            ),
-                          ],
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_currentUser?.puedeGestionarUsuarios == true &&
-                                _canEditUser(user))
-                              IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.blue),
-                                onPressed: () {
-                                  _showUserDialog(userToEdit: user);
-                                },
-                              ),
-                            if (_currentUser?.puedeGestionarUsuarios == true &&
-                                _currentUser?.idUsuario != user.idUsuario &&
-                                _canDeleteUser(user))
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () {
-                                  _deleteUser(user);
-                                },
-                              ),
-                          ],
-                        ),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Divider(height: 20),
-                                _buildInfoRow('Teléfono:', user.telefono),
-                                _buildInfoRow('Género:', user.genero),
-                                _buildInfoRow('Fecha de Nacimiento:', 
-                                    '${user.fechaNacimiento.day}/${user.fechaNacimiento.month}/${user.fechaNacimiento.year}'),
-                                _buildInfoRow('Dirección:', user.direccion),
-                                _buildInfoRow('Ciudad:', user.ciudadResidencia),
-                                _buildInfoRow('País:', user.paisResidencia),
-                                _buildInfoRow('Estado:', user.activo ? 'Activo' : 'Inactivo'),
-                                const SizedBox(height: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFfdb913).withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'Registrado: ${user.createdAt.day}/${user.createdAt.month}/${user.createdAt.year}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF3D1F6E),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
                 ),
-      floatingActionButton: _currentUser?.puedeGestionarUsuarios == true
-          ? FloatingActionButton(
-              onPressed: () => _showUserDialog(),
-              backgroundColor: const Color(0xFFfdb913),
-              child: const Icon(Icons.person_add),
-            )
-          : null,
+                _UserRoleBadge(role: user.rol, color: roleColor),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              children: [
+                _InfoChip(icon: Icons.perm_identity_rounded, label: user.numDocumento),
+                _InfoChip(icon: Icons.phone_rounded, label: user.telefono),
+                _InfoChip(icon: Icons.location_city_rounded, label: user.ciudadResidencia),
+                _InfoChip(icon: Icons.flag_rounded, label: user.paisResidencia),
+                _InfoChip(icon: Icons.cake_rounded, label: '${user.edad} años'),
+                _InfoChip(icon: Icons.badge_rounded, label: user.tipoDocumento),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  user.activo ? 'Activo' : 'Inactivo',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w600,
+                    color: user.activo ? const Color(0xFF1B8D5E) : const Color(0xFFB3261E),
+                  ),
+                ),
+                actionButtons.isEmpty
+                    ? const SizedBox.shrink()
+                    : Row(children: actionButtons),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
+}
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.black54,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w400,
-              ),
-            ),
+class _CurrentUserBanner extends StatelessWidget {
+  const _CurrentUserBanner({required this.currentUser, required this.totalUsers});
+
+  final User? currentUser;
+  final int totalUsers;
+
+  @override
+  Widget build(BuildContext context) {
+    if (currentUser == null) return const SizedBox.shrink();
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3D1F6E), Color(0xFF2C53A4)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2C53A4).withOpacity(0.24),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
           ),
         ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
+        child: Row(
+          children: [
+            Container(
+              height: 54,
+              width: 54,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.16),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 28),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    currentUser!.nombreCompleto,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tu rol: ${currentUser!.rol.displayName} • Usuarios registrados: $totalUsers',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.85),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyUsersState extends StatelessWidget {
+  const _EmptyUsersState({this.onCreate});
+
+  final VoidCallback? onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            height: 140,
+            width: 140,
+            decoration: BoxDecoration(
+              color: const Color(0xFF3D1F6E).withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.group_add_rounded, size: 56, color: Color(0xFF3D1F6E)),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Aún no hay usuarios registrados',
+            style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Crea el primer usuario para comenzar a gestionar accesos y permisos.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.montserrat(fontSize: 13, color: const Color(0xFF6F6F6F)),
+          ),
+          const SizedBox(height: 20),
+          if (onCreate != null)
+            FilledButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Agregar usuario'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFf7941e),
+                foregroundColor: Colors.white,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F7FB),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF6F6F6F)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: GoogleFonts.montserrat(fontSize: 12, color: const Color(0xFF4B4B4B)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserRoleBadge extends StatelessWidget {
+  const _UserRoleBadge({required this.role, required this.color});
+
+  final UserRole role;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        role.displayName,
+        style: GoogleFonts.montserrat(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
       ),
     );
   }

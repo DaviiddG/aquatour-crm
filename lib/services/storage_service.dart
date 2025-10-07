@@ -14,6 +14,32 @@ class StorageService {
     _restoreSession();
   }
 
+  // ===== ORDEN PERSONALIZADO DEL DASHBOARD =====
+
+  Future<List<String>> getDashboardOrder(String userKey) async {
+    try {
+      final stored = html.window.localStorage['$_dashboardOrderPrefix$userKey'];
+      if (stored == null || stored.isEmpty) {
+        return [];
+      }
+      final decoded = jsonDecode(stored);
+      if (decoded is List) {
+        return decoded.map((e) => e.toString()).toList();
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error leyendo orden de dashboard: $e');
+    }
+    return [];
+  }
+
+  Future<void> saveDashboardOrder(String userKey, List<String> moduleIds) async {
+    try {
+      html.window.localStorage['$_dashboardOrderPrefix$userKey'] = jsonEncode(moduleIds);
+    } catch (e) {
+      debugPrint('⚠️ Error guardando orden de dashboard: $e');
+    }
+  }
+
   final ApiService _apiService = ApiService();
 
   // Token de autenticación actual
@@ -23,6 +49,7 @@ class StorageService {
   static const String _tokenStorageKey = 'aquatour_auth_token';
   static const String _userStorageKey = 'aquatour_current_user';
   static const String _lastActivityStorageKey = 'aquatour_last_activity';
+  static const String _dashboardOrderPrefix = 'aquatour_dashboard_order_';
   static const Duration _sessionTimeout = Duration(minutes: 10);
 
   // Configurar token de autenticación
@@ -180,7 +207,11 @@ class StorageService {
 
   Future<bool> emailExists(String email, {int? excludeUserId}) async {
     try {
-      final response = await _apiService.checkEmailExists(email, token: _authToken);
+      final response = await _apiService.checkEmailExists(
+        email,
+        token: _authToken,
+        excludeUserId: excludeUserId,
+      );
       return response['exists'] ?? false;
     } catch (e) {
       print('❌ Error verificando email: $e');
