@@ -14,65 +14,135 @@ import 'package:aquatour/screens/client_list_screen.dart';
 
 class _LimitedModule {
   const _LimitedModule({
+    required this.id,
     required this.title,
     required this.description,
     required this.icon,
     required this.builder,
   });
 
+  final String id;
   final String title;
   final String description;
   final IconData icon;
   final WidgetBuilder builder;
 }
 
-class LimitedDashboardScreen extends StatelessWidget {
+class LimitedDashboardScreen extends StatefulWidget {
   const LimitedDashboardScreen({super.key});
 
-  static final List<_LimitedModule> _modules = [
-    _LimitedModule(
-      title: 'Cotizaciones',
-      description: 'Genera propuestas a clientes y da seguimiento a su estado.',
-      icon: Icons.request_quote,
-      builder: (context) => const QuotesScreen(),
-    ),
-    _LimitedModule(
-      title: 'Reservas',
-      description: 'Revisa viajes agendados y actualiza la información necesaria.',
-      icon: Icons.book_online,
-      builder: (context) => const ReservationsScreen(),
-    ),
-    _LimitedModule(
-      title: 'Contactos',
-      description: 'Consulta datos clave de clientes y mantén la información al día.',
-      icon: Icons.contacts,
-      builder: (context) => const ContactsScreen(),
-    ),
-    _LimitedModule(
-      title: 'Indicadores de Desempeño',
-      description: 'Visualiza tus métricas personales y analiza tu rendimiento mensual.',
-      icon: Icons.analytics,
-      builder: (context) => const PerformanceIndicatorsScreen(),
-    ),
-    _LimitedModule(
-      title: 'Clientes',
-      description: 'Gestiona la cartera de clientes asignados y su información clave.',
-      icon: Icons.people_outline,
-      builder: (context) => const ClientListScreen(),
-    ),
-    _LimitedModule(
-      title: 'Destinos',
-      description: 'Explora los destinos disponibles para crear experiencias a medida.',
-      icon: Icons.location_on_outlined,
-      builder: (context) => const DestinationsScreen(),
-    ),
-    _LimitedModule(
-      title: 'Paquetes Turísticos',
-      description: 'Consulta y personaliza paquetes y promociones para tus clientes.',
-      icon: Icons.card_travel,
-      builder: (context) => const TourPackagesScreen(),
-    ),
-  ];
+  @override
+  State<LimitedDashboardScreen> createState() => _LimitedDashboardScreenState();
+}
+
+class _LimitedDashboardScreenState extends State<LimitedDashboardScreen> {
+  final StorageService _storageService = StorageService();
+  List<_LimitedModule> _modules = [];
+  bool _loadingModules = true;
+  User? _currentUser;
+
+  static List<_LimitedModule> _baseModules() => [
+        _LimitedModule(
+          id: 'quotes',
+          title: 'Cotizaciones',
+          description: 'Genera propuestas a clientes y da seguimiento a su estado.',
+          icon: Icons.request_quote,
+          builder: (context) => const QuotesScreen(),
+        ),
+        _LimitedModule(
+          id: 'reservations',
+          title: 'Reservas',
+          description: 'Revisa viajes agendados y actualiza la información necesaria.',
+          icon: Icons.book_online,
+          builder: (context) => const ReservationsScreen(),
+        ),
+        _LimitedModule(
+          id: 'contacts',
+          title: 'Contactos',
+          description: 'Consulta datos clave de clientes y mantén la información al día.',
+          icon: Icons.contacts,
+          builder: (context) => const ContactsScreen(),
+        ),
+        _LimitedModule(
+          id: 'metrics',
+          title: 'Indicadores de Desempeño',
+          description: 'Visualiza tus métricas personales y analiza tu rendimiento mensual.',
+          icon: Icons.analytics,
+          builder: (context) => const PerformanceIndicatorsScreen(),
+        ),
+        _LimitedModule(
+          id: 'clients',
+          title: 'Clientes',
+          description: 'Gestiona la cartera de clientes asignados y su información clave.',
+          icon: Icons.people_outline,
+          builder: (context) => const ClientListScreen(),
+        ),
+        _LimitedModule(
+          id: 'destinations',
+          title: 'Destinos',
+          description: 'Explora los destinos disponibles para crear experiencias a medida.',
+          icon: Icons.location_on_outlined,
+          builder: (context) => const DestinationsScreen(),
+        ),
+        _LimitedModule(
+          id: 'packages',
+          title: 'Paquetes Turísticos',
+          description: 'Consulta y personaliza paquetes y promociones para tus clientes.',
+          icon: Icons.card_travel,
+          builder: (context) => const TourPackagesScreen(),
+        ),
+      ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeModules();
+  }
+
+  Future<void> _initializeModules() async {
+    final user = await _storageService.getCurrentUser();
+    final baseModules = _baseModules();
+    final orderKey = user == null ? 'guest' : _orderKeyForUser(user);
+    final storedOrder = await _storageService.getDashboardOrder(orderKey);
+    final moduleMap = {for (final module in baseModules) module.id: module};
+    final ordered = <_LimitedModule>[];
+
+    for (final id in storedOrder) {
+      final module = moduleMap.remove(id);
+      if (module != null) ordered.add(module);
+    }
+    ordered.addAll(moduleMap.values);
+
+    if (!mounted) return;
+    setState(() {
+      _currentUser = user;
+      _modules = ordered;
+      _loadingModules = false;
+    });
+  }
+
+  String _orderKeyForUser(User user) {
+    final identifier = user.idUsuario?.toString().trim();
+    if (identifier != null && identifier.isNotEmpty) {
+      return 'limited_$identifier';
+    }
+    return 'limited_${user.email}';
+  }
+
+  void _handleReorder(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    final updated = List<_LimitedModule>.from(_modules);
+    final module = updated.removeAt(oldIndex);
+    updated.insert(newIndex, module);
+
+    setState(() {
+      _modules = updated;
+    });
+
+    final user = _currentUser;
+    final key = user == null ? 'guest' : _orderKeyForUser(user);
+    _storageService.saveDashboardOrder(key, updated.map((m) => m.id).toList());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -151,47 +221,55 @@ class LimitedDashboardScreen extends StatelessWidget {
             final crossAxisCount = _columnsForWidth(width);
             final cardAspectRatio = _aspectRatioForWidth(width);
 
-            return CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                    child: FutureBuilder<User?>(
-                      future: StorageService().getCurrentUser(),
-                      builder: (context, snapshot) {
-                        final user = snapshot.data;
-                        return _LimitedHeader(width: width, currentUser: user);
-                      },
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                  child: _LimitedHeader(width: width, currentUser: _currentUser),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Mantén presionado y arrastra las tarjetas para ordenar tus accesos.',
+                      style: GoogleFonts.montserrat(fontSize: 11, color: const Color(0xFF6F6F6F)),
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                  sliver: SliverGrid(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 18,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: cardAspectRatio,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final module = _modules[index];
-                        return DashboardOptionCard(
-                          title: module.title,
-                          description: module.description,
-                          icon: module.icon,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: module.builder),
-                          ),
-                        );
-                      },
-                      childCount: _modules.length,
-                    ),
-                  ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _loadingModules
+                      ? const Center(child: CircularProgressIndicator())
+                      : ReorderableListView.builder(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                          buildDefaultDragHandles: false,
+                          physics: const BouncingScrollPhysics(),
+                          onReorder: _handleReorder,
+                          itemCount: _modules.length,
+                          itemBuilder: (context, index) {
+                            final module = _modules[index];
+                            return Padding(
+                              key: ValueKey(module.id),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: ReorderableDelayedDragStartListener(
+                                index: index,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(minHeight: 140),
+                                  child: DashboardOptionCard(
+                                    title: module.title,
+                                    description: module.description,
+                                    icon: module.icon,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(builder: module.builder),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                 ),
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             );
           },
@@ -213,7 +291,7 @@ class LimitedDashboardScreen extends StatelessWidget {
   }
 
   Future<void> _handleLogout(BuildContext context) async {
-    await StorageService().logout();
+    await _storageService.logout();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -257,27 +335,63 @@ class _LimitedHeader extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Hola, $greetingName 👋',
-            style: GoogleFonts.montserrat(
-              fontSize: isCompact ? 22 : 24,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hola, $greetingName 👋',
+                  style: GoogleFonts.montserrat(
+                    fontSize: isCompact ? 22 : 26,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.montserrat(
+                    fontSize: isCompact ? 13 : 15,
+                    color: Colors.white.withOpacity(0.84),
+                    height: 1.5,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            subtitle,
-            style: GoogleFonts.montserrat(
-              fontSize: isCompact ? 13 : 14,
-              color: Colors.white.withOpacity(0.84),
-              height: 1.5,
+          if (!isCompact) const SizedBox(width: 24),
+          if (!isCompact)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Hoy',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.75),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Prioriza tus clientes clave y mantén vivas tus oportunidades.',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 13,
+                      color: Colors.white,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
         ],
       ),
     );

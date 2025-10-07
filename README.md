@@ -95,7 +95,7 @@ Los archivos construidos estarán en `build/web/`. Puedes servirlos con cualquie
   - `lib/dashboard_screen.dart` define `DashboardModule` (id, título, descripción, icono, builder, roles permitidos). `_getModulesForUser()` filtra módulos por `UserRole` y combina el resultado con el orden almacenado en `StorageService`.
   - Se usa `FutureBuilder` para leer al usuario actual y `ReorderableListView` para permitir drag & drop, disparando `StorageService.saveDashboardOrder()` tras cada reordenamiento.
   - `_DashboardHeader` entrega saludo personalizado con gradiente y CTA informativa; se ajusta según anchura (`isCompact`).
-  - `lib/limited_dashboard_screen.dart` replica el patrón con `_LimitedModule` y mantiene cabecera `_LimitedHeader` adaptada a empleados. El AppBar detecta `isNarrow` para reemplazar `TextButton.icon` por `IconButton`, evitando solapamiento en móviles.
+  - `lib/limited_dashboard_screen.dart` replica el patrón con `_LimitedModule`, permite ordenar accesos del empleado con `ReorderableListView` y mantiene cabecera `_LimitedHeader`. El AppBar detecta `isNarrow` para reemplazar `TextButton.icon` por `IconButton`, evitando solapamiento en móviles.
   - `lib/widgets/dashboard_option_card.dart` encapsula cada atajo: `AnimatedScale` y `AnimatedContainer` manejan el hover; el contenido se organiza con `Row` + `Expanded` y un botón `TextButton.icon` alineado a la derecha.
 
 - **Módulo de clientes**

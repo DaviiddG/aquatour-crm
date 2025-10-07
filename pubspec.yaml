@@ -24,6 +24,7 @@ dependencies:
   json_annotation: ^4.8.1
   # Visualizaciones y gráficas
   fl_chart: ^0.68.0
+  equatable: ^2.0.5
 
 dev_dependencies:
   flutter_test:
