@@ -16,13 +16,14 @@ void main() async {
     await dotenv.load(fileName: ".env");
     print('✅ Variables de entorno cargadas desde .env');
   } catch (e) {
-    print('⚠️ Error cargando .env, intentando .env.local: $e');
-    try {
-      await dotenv.load(fileName: ".env.local");
-      print('✅ Variables de entorno cargadas desde .env.local');
-    } catch (e2) {
-      print('⚠️ Error cargando .env.local, usando valores por defecto: $e2');
-    }
+    print('⚠️ Error cargando .env: $e');
+  }
+
+  try {
+    await dotenv.load(fileName: ".env.local", mergeWith: dotenv.env);
+    print('✅ Variables de entorno cargadas/actualizadas desde .env.local');
+  } catch (e) {
+    print('ℹ️ .env.local no encontrado o no accesible: $e');
   }
 
   // Inicializar servicios de API

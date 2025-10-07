@@ -72,8 +72,20 @@ class ApiService {
 
   dynamic _parseResponse(http.Response response) {
     final status = response.statusCode;
-    final rawBody = response.body;
-    final decoded = rawBody.isEmpty ? {} : json.decode(rawBody);
+    final rawBody = utf8.decode(response.bodyBytes);
+    dynamic decoded;
+
+    if (rawBody.isEmpty) {
+      decoded = {};
+    } else {
+      try {
+        decoded = json.decode(rawBody);
+      } on FormatException {
+        final snippet = rawBody.length > 160 ? '${rawBody.substring(0, 160)}…' : rawBody;
+        debugPrint('⚠️ Respuesta no JSON (${response.request?.url} - status $status): $snippet');
+        throw Exception('La API devolvió una respuesta inesperada (status $status). Verifica la URL base y el servidor.');
+      }
+    }
 
     if (status >= 400) {
       final message = decoded is Map<String, dynamic>
