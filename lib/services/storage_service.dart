@@ -204,6 +204,34 @@ class StorageService {
     _persistSession();
   }
 
+  static Future<String?> getToken() async {
+    return StorageService()._getToken();
+  }
+
+  Future<String?> _getToken() async {
+    if (!_hasValidSession()) {
+      return null;
+    }
+
+    if (_authToken != null) {
+      _refreshLastActivity();
+      return _authToken;
+    }
+
+    if (!kIsWeb) {
+      return _authToken;
+    }
+
+    final storedToken = html.window.localStorage[_tokenStorageKey];
+    if (storedToken != null && storedToken.isNotEmpty) {
+      _authToken = storedToken;
+      _refreshLastActivity();
+      return storedToken;
+    }
+
+    return null;
+  }
+
   // Limpiar token de autenticación
   void clearAuthToken() {
     _authToken = null;

@@ -1,8 +1,8 @@
-import 'package:aquatour/services/local_storage_service.dart';
 import 'package:aquatour/models/user.dart';
+import 'package:aquatour/services/storage_service.dart';
 
 class AuthService {
-  final LocalStorageService _storage = LocalStorageService();
+  final StorageService _storage = StorageService();
 
   Future<UserRole> getCurrentUserRole() async {
     try {
@@ -19,7 +19,9 @@ class AuthService {
 
   Future<String?> getCurrentUserId() async {
     try {
-      return await _storage.getUserId();
+      final currentUser = await _storage.getCurrentUser();
+      final id = currentUser?.idUsuario;
+      return id?.toString();
     } catch (e) {
       print('❌ Error obteniendo ID del usuario actual: $e');
       return null;
@@ -37,12 +39,8 @@ class AuthService {
 
   Future<bool> login(String email, String password) async {
     try {
-      final user = await _storage.getUserByEmail(email);
-      if (user != null && user.contrasena == password) {
-        await _storage.saveCurrentUser(user.idUsuario.toString());
-        return true;
-      }
-      return false;
+      final user = await _storage.login(email, password);
+      return user != null;
     } catch (e) {
       print('❌ Error durante el login: $e');
       return false;
@@ -51,7 +49,7 @@ class AuthService {
 
   Future<void> logout() async {
     try {
-      await _storage.clearCurrentUser();
+      await _storage.logout();
     } catch (e) {
       print('❌ Error durante el logout: $e');
     }

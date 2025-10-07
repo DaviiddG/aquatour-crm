@@ -258,6 +258,54 @@ class ApiService {
     await _delete('/contacts/$id', token: token);
   }
 
+  // ===== CLIENTES =====
+
+  Future<List<dynamic>> getClients(String? token) async {
+    final response = await _get('/clients', token: token);
+    if (response is Map<String, dynamic> && response['clients'] is List<dynamic>) {
+      return response['clients'] as List<dynamic>;
+    }
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<Map<String, dynamic>> getClient(int id, String? token) async {
+    final response = await _get('/clients/$id', token: token);
+    if (response is Map<String, dynamic> && response['client'] is Map<String, dynamic>) {
+      return response['client'] as Map<String, dynamic>;
+    }
+    return response as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getClientsByUser(int userId, String? token) async {
+    final response = await _get('/clients/user/$userId', token: token);
+    if (response is Map<String, dynamic> && response['clients'] is List<dynamic>) {
+      return response['clients'] as List<dynamic>;
+    }
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<Map<String, dynamic>> createClient(Map<String, dynamic> clientData, String? token) async {
+    final response = await _post('/clients', clientData, token: token);
+    if (response is Map<String, dynamic> && response['client'] is Map<String, dynamic>) {
+      return response['client'] as Map<String, dynamic>;
+    }
+    return response as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateClient(int id, Map<String, dynamic> clientData, String? token) async {
+    final response = await _put('/clients/$id', clientData, token: token);
+    if (response is Map<String, dynamic> && response['client'] is Map<String, dynamic>) {
+      return response['client'] as Map<String, dynamic>;
+    }
+    return response as Map<String, dynamic>;
+  }
+
+  Future<void> deleteClient(int id, String? token) async {
+    await _delete('/clients/$id', token: token);
+  }
+
   // ===== ESTADÍSTICAS Y DASHBOARD =====
 
   // Obtener estadísticas del dashboard
