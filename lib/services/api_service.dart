@@ -11,6 +11,13 @@ class ApiService {
   ApiService._internal();
 
   static const String _dartDefineBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+  static const String _remoteFallbackUrl = 'https://app-6aaf68d8-72ab-47f4-bad2-13d5ab31d374.cleverapps.io/api';
+
+  static bool get _isLocalHost {
+    if (!kIsWeb) return false;
+    final host = Uri.base.host;
+    return host == 'localhost' || host == '127.0.0.1' || host.startsWith('192.168.') || host.startsWith('10.');
+  }
 
   // Base URL para la API - configurable desde .env
   static String get _baseUrl {
@@ -24,10 +31,13 @@ class ApiService {
     }
 
     if (kIsWeb) {
-      return _normalizeBaseUrl(Uri.base.origin);
+      if (_isLocalHost) {
+        return _normalizeBaseUrl(Uri.base.origin);
+      }
+      return _normalizeBaseUrl(_remoteFallbackUrl);
     }
 
-    return 'http://localhost:8080/api'; // URL por defecto para desarrollo
+    return _normalizeBaseUrl(_remoteFallbackUrl); // Fallback para builds nativos
   }
 
   static String get baseUrl => _baseUrl;

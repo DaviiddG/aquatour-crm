@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:aquatour/login_screen.dart';
@@ -19,11 +19,18 @@ void main() async {
     print('⚠️ Error cargando .env: $e');
   }
 
-  try {
-    await dotenv.load(fileName: ".env.local", mergeWith: dotenv.env);
-    print('✅ Variables de entorno cargadas/actualizadas desde .env.local');
-  } catch (e) {
-    print('ℹ️ .env.local no encontrado o no accesible: $e');
+  final bool isLocalHost = kIsWeb && (Uri.base.host == 'localhost' || Uri.base.host == '127.0.0.1');
+  final bool shouldLoadLocalEnv = !kReleaseMode && (isLocalHost || !kIsWeb);
+
+  if (shouldLoadLocalEnv) {
+    try {
+      await dotenv.load(fileName: ".env.local", mergeWith: dotenv.env);
+      print('✅ Variables de entorno cargadas/actualizadas desde .env.local');
+    } catch (e) {
+      print('ℹ️ .env.local no encontrado o no accesible: $e');
+    }
+  } else {
+    print('ℹ️ Entorno de producción detectado (host: ${Uri.base.host}). Se mantiene configuración de .env');
   }
 
   // Inicializar servicios de API

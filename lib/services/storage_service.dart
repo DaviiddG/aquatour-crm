@@ -3,7 +3,6 @@ import 'dart:convert';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/client.dart';
 import '../models/contact.dart';
 import '../models/reservation.dart';
