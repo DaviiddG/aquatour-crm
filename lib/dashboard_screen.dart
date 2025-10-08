@@ -4,7 +4,7 @@ import 'models/user.dart';
 import 'login_screen.dart';
 import 'performance_indicators_screen.dart';
 import 'contacts_screen.dart';
-import 'companies_screen.dart';
+import 'providers_screen.dart';
 import 'quotes_screen.dart';
 import 'reservations_screen.dart';
 import 'user_management_screen.dart';
@@ -91,7 +91,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         description: 'Explora destinos y materiales para personalizar experiencias.',
         icon: Icons.flight_takeoff_rounded,
         builder: (context) => const DestinationsScreen(),
-        allowedRoles: const [UserRole.administrador, UserRole.superadministrador],
       ),
       DashboardModule(
         id: 'packages',
@@ -99,7 +98,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         description: 'Centraliza paquetes base y promociones para el equipo.',
         icon: Icons.card_travel_rounded,
         builder: (context) => const TourPackagesScreen(),
-        allowedRoles: const [UserRole.administrador, UserRole.superadministrador],
       ),
       DashboardModule(
         id: 'quotes',
@@ -123,11 +121,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         builder: (context) => const PaymentsScreen(),
       ),
       DashboardModule(
-        id: 'companies',
-        title: 'Empresas',
-        description: 'Directorio de compañías con las que colaboramos.',
+        id: 'providers',
+        title: 'Proveedores',
+        description: 'Directorio de proveedores con los que colaboramos.',
         icon: Icons.business_rounded,
-        builder: (context) => const CompaniesScreen(),
+        builder: (context) => const ProvidersScreen(),
+        allowedRoles: const [UserRole.administrador, UserRole.superadministrador],
       ),
     ];
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/storage_service.dart';
+import '../utils/number_formatter.dart';
 import '../models/user.dart';
 import '../widgets/module_scaffold.dart';
 
@@ -686,8 +687,9 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
   Widget _buildQuotesChart() {
     final quotes = _metrics['quotes'] ?? {};
     final accepted = (quotes['accepted'] ?? 0).toDouble();
-    final total = (quotes['total'] ?? 0).toDouble();
-    final rejected = total - accepted;
+    final rejected = (quotes['rejected'] ?? 0).toDouble();
+    final pending = (quotes['pending'] ?? 0).toDouble();
+    final total = accepted + rejected + pending;
 
     return Card(
       elevation: 3,
@@ -710,43 +712,67 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
-              child: PieChart(
-                PieChartData(
-                  sections: [
-                    PieChartSectionData(
-                      value: accepted,
-                      title: '${accepted.toInt()}\nAceptadas',
-                      color: const Color(0xFF4C39A6),
-                      radius: 60,
-                      titleStyle: GoogleFonts.montserrat(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+              child: total == 0
+                  ? Center(
+                      child: Text(
+                        'Sin cotizaciones',
+                        style: GoogleFonts.montserrat(color: Colors.grey),
+                      ),
+                    )
+                  : PieChart(
+                      PieChartData(
+                        sections: [
+                          if (accepted > 0)
+                            PieChartSectionData(
+                              value: accepted,
+                              title: '${accepted.toInt()}\nAceptadas',
+                              color: Colors.green,
+                              radius: 60,
+                              titleStyle: GoogleFonts.montserrat(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          if (pending > 0)
+                            PieChartSectionData(
+                              value: pending,
+                              title: '${pending.toInt()}\nPendientes',
+                              color: Colors.orange,
+                              radius: 60,
+                              titleStyle: GoogleFonts.montserrat(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          if (rejected > 0)
+                            PieChartSectionData(
+                              value: rejected,
+                              title: '${rejected.toInt()}\nRechazadas',
+                              color: Colors.red,
+                              radius: 60,
+                              titleStyle: GoogleFonts.montserrat(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                        ],
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 40,
                       ),
                     ),
-                    PieChartSectionData(
-                      value: rejected,
-                      title: '${rejected.toInt()}\nRechazadas',
-                      color: Colors.red.shade300,
-                      radius: 60,
-                      titleStyle: GoogleFonts.montserrat(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                  sectionsSpace: 2,
-                  centerSpaceRadius: 40,
-                ),
-              ),
             ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
               children: [
-                _buildLegendItem('Aceptadas', const Color(0xFF4C39A6)),
-                _buildLegendItem('Rechazadas', Colors.red.shade300),
+                _buildLegendItem('Aceptadas', Colors.green),
+                _buildLegendItem('Pendientes', Colors.orange),
+                _buildLegendItem('Rechazadas', Colors.red),
               ],
             ),
           ],
@@ -816,7 +842,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
             const SizedBox(height: 16),
             _buildMetricRow(
               'Ingresos Totales',
-              '\$${(sales['totalRevenue'] ?? 0).toStringAsFixed(0)}',
+              NumberFormatter.formatCurrency(sales['totalRevenue'] ?? 0),
               Icons.attach_money,
             ),
             _buildMetricRow(
@@ -826,7 +852,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
             ),
             _buildMetricRow(
               'Venta Promedio',
-              '\$${(sales['averageSale'] ?? 0).toStringAsFixed(0)}',
+              NumberFormatter.formatCurrency(sales['averageSale'] ?? 0),
               Icons.trending_up,
             ),
             const Divider(),

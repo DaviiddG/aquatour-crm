@@ -453,6 +453,66 @@ class ApiService {
     await _delete('/packages/$id', token: token);
   }
 
+  // ===== COTIZACIONES =====
+
+  Future<List<dynamic>> getQuotes(String? token) async {
+    final response = await _get('/quotes', token: token);
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<List<dynamic>> getQuotesByEmployee(int employeeId, String? token) async {
+    final response = await _get('/quotes/employee/$employeeId', token: token);
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<Map<String, dynamic>> getQuoteById(int id, String? token) async {
+    final response = await _get('/quotes/$id', token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> createQuote(Map<String, dynamic> quoteData, String? token) async {
+    final response = await _post('/quotes', quoteData, token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> updateQuote(int id, Map<String, dynamic> quoteData, String? token) async {
+    final response = await _put('/quotes/$id', quoteData, token: token);
+    return response;
+  }
+
+  Future<void> deleteQuote(int id, String? token) async {
+    await _delete('/quotes/$id', token: token);
+  }
+
+  // ===== PROVEEDORES =====
+
+  Future<List<dynamic>> getProviders(String? token) async {
+    final response = await _get('/providers', token: token);
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<Map<String, dynamic>> getProviderById(int id, String? token) async {
+    final response = await _get('/providers/$id', token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> createProvider(Map<String, dynamic> providerData, String? token) async {
+    final response = await _post('/providers', providerData, token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> updateProvider(int id, Map<String, dynamic> providerData, String? token) async {
+    final response = await _put('/providers/$id', providerData, token: token);
+    return response;
+  }
+
+  Future<void> deleteProvider(int id, String? token) async {
+    await _delete('/providers/$id', token: token);
+  }
+
   // ===== ESTADÍSTICAS Y DASHBOARD =====
 
   // Obtener estadísticas del dashboard

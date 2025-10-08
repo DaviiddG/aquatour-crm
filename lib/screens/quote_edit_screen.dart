@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../models/reservation.dart';
+import '../models/quote.dart';
 import '../models/client.dart';
 import '../models/tour_package.dart';
 import '../services/storage_service.dart';
 import '../utils/number_formatter.dart';
 
-class ReservationEditScreen extends StatefulWidget {
-  final Reservation? reservation;
+class QuoteEditScreen extends StatefulWidget {
+  final Quote? quote;
 
-  const ReservationEditScreen({super.key, this.reservation});
+  const QuoteEditScreen({super.key, this.quote});
 
   @override
-  State<ReservationEditScreen> createState() => _ReservationEditScreenState();
+  State<QuoteEditScreen> createState() => _QuoteEditScreenState();
 }
 
-class _ReservationEditScreenState extends State<ReservationEditScreen> {
+class _QuoteEditScreenState extends State<QuoteEditScreen> {
   final _formKey = GlobalKey<FormState>();
   final StorageService _storageService = StorageService();
 
@@ -27,10 +26,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
   int? _selectedPackageId;
   DateTime? _fechaInicio;
   DateTime? _fechaFin;
-  
-  late TextEditingController _cantidadPersonasController;
-  late TextEditingController _totalPagoController;
-  late TextEditingController _notasController;
+  double _precioEstimado = 0.0;
 
   bool _isSaving = false;
   bool _isLoading = true;
@@ -38,20 +34,11 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedClientId = widget.reservation?.idCliente;
-    _selectedPackageId = widget.reservation?.idPaquete;
-    _fechaInicio = widget.reservation?.fechaInicioViaje;
-    _fechaFin = widget.reservation?.fechaFinViaje;
-    
-    _cantidadPersonasController = TextEditingController(
-      text: widget.reservation?.cantidadPersonas.toString() ?? '1',
-    );
-    _totalPagoController = TextEditingController(
-      text: widget.reservation?.totalPago.toString() ?? '',
-    );
-    _notasController = TextEditingController(
-      text: widget.reservation?.notas ?? '',
-    );
+    _selectedClientId = widget.quote?.idCliente;
+    _selectedPackageId = widget.quote?.idPaquete;
+    _fechaInicio = widget.quote?.fechaInicioViaje;
+    _fechaFin = widget.quote?.fechaFinViaje;
+    _precioEstimado = widget.quote?.precioEstimado ?? 0.0;
     
     _loadData();
   }
@@ -85,28 +72,17 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
       _selectedPackageId = packageId;
       if (packageId != null) {
         final package = _packages.firstWhere((p) => p.id == packageId);
-        // Sugerir duración basada en el paquete
+        // Calcular precio automáticamente
+        _precioEstimado = package.precioBase;
+        // Sugerir duración
         if (_fechaInicio != null) {
           _fechaFin = _fechaInicio!.add(Duration(days: package.duracionDias));
-        }
-        // Sugerir precio base
-        if (_totalPagoController.text.isEmpty) {
-          _totalPagoController.text = package.precioBase.toString();
         }
       }
     });
   }
 
-  @override
-  void dispose() {
-    _cantidadPersonasController.dispose();
-    _totalPagoController.dispose();
-    _notasController.dispose();
-    super.dispose();
-  }
-
   Future<void> _selectDateRange(BuildContext context) async {
-    // Obtener duración mínima del paquete si está seleccionado
     int? minDuration;
     if (_selectedPackageId != null) {
       final package = _packages.firstWhere((p) => p.id == _selectedPackageId);
@@ -131,20 +107,9 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
       helpText: minDuration != null 
           ? 'Selecciona fechas (mínimo $minDuration días)' 
           : 'Selecciona las fechas del viaje',
-      cancelText: 'Cancelar',
-      confirmText: 'Confirmar',
-      saveText: 'Guardar',
-      errorFormatText: 'Formato incorrecto',
-      errorInvalidText: 'Fecha inválida',
-      errorInvalidRangeText: 'Rango inválido',
-      fieldStartHintText: 'Fecha inicio',
-      fieldEndHintText: 'Fecha fin',
-      fieldStartLabelText: 'Inicio',
-      fieldEndLabelText: 'Fin',
     );
 
     if (picked != null) {
-      // Validar duración mínima si hay paquete seleccionado
       if (minDuration != null) {
         final selectedDuration = picked.end.difference(picked.start).inDays + 1;
         if (selectedDuration < minDuration) {
@@ -166,7 +131,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
     }
   }
 
-  Future<void> _saveReservation() async {
+  Future<void> _saveQuote() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedClientId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -185,35 +150,26 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
 
     try {
       final currentUser = await _storageService.getCurrentUser();
-      if (currentUser == null) {
-        throw Exception('Usuario no autenticado');
-      }
-      
-      if (currentUser.idUsuario == null) {
+      if (currentUser?.idUsuario == null) {
         throw Exception('ID de usuario no disponible');
       }
 
-      final reservation = Reservation(
-        id: widget.reservation?.id,
-        estado: ReservationStatus.pendiente,
-        cantidadPersonas: int.parse(_cantidadPersonasController.text),
-        totalPago: double.parse(_totalPagoController.text),
+      final quote = Quote(
+        id: widget.quote?.id,
         fechaInicioViaje: _fechaInicio!,
         fechaFinViaje: _fechaFin!,
-        idCliente: _selectedClientId!,
+        precioEstimado: _precioEstimado,
         idPaquete: _selectedPackageId,
-        idEmpleado: currentUser.idUsuario!,
-        notas: _notasController.text.trim().isEmpty ? null : _notasController.text.trim(),
+        idCliente: _selectedClientId!,
+        idEmpleado: currentUser!.idUsuario!,
       );
 
-      debugPrint('🔍 Creando reserva con idEmpleado: ${currentUser.idUsuario}, idPaquete: $_selectedPackageId');
-
-      await _storageService.saveReservation(reservation);
+      await _storageService.saveQuote(quote);
 
       if (mounted) {
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reserva guardada exitosamente'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Cotización guardada exitosamente'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
@@ -228,7 +184,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.reservation != null;
+    final isEditing = widget.quote != null;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -241,11 +197,11 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              isEditing ? 'Editar Reserva' : 'Nueva Reserva',
+              isEditing ? 'Editar Cotización' : 'Nueva Cotización',
               style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 18, color: const Color(0xFF1F1F1F)),
             ),
             Text(
-              'Gestión de reservas',
+              'Genera propuestas para tus clientes',
               style: GoogleFonts.montserrat(fontSize: 12, color: const Color(0xFF6F6F6F)),
             ),
           ],
@@ -270,14 +226,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                           labelStyle: GoogleFonts.montserrat(fontSize: 13),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Color(0xFF3D1F6E), width: 1.5),
-                          ),
+                          prefixIcon: const Icon(Icons.person, size: 20),
                         ),
                         items: _clients.map((client) {
                           return DropdownMenuItem<int>(
@@ -329,7 +278,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Las fechas y precio se ajustarán según el paquete seleccionado',
+                                  'El precio se calculó automáticamente según el paquete',
                                   style: GoogleFonts.montserrat(fontSize: 12, color: Colors.blue[900]),
                                 ),
                               ),
@@ -351,26 +300,16 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                             labelStyle: GoogleFonts.montserrat(fontSize: 13),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFF3D1F6E), width: 1.5),
-                            ),
+                            prefixIcon: const Icon(Icons.calendar_today, size: 20),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _fechaInicio != null && _fechaFin != null
-                                    ? '${DateFormat('dd/MM/yyyy').format(_fechaInicio!)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin!)}'
-                                    : 'Seleccionar fechas',
-                                style: GoogleFonts.montserrat(fontSize: 14),
-                              ),
-                              const Icon(Icons.date_range, size: 20, color: Color(0xFF3D1F6E)),
-                            ],
+                          child: Text(
+                            _fechaInicio != null && _fechaFin != null
+                                ? '${DateFormat('dd/MM/yyyy').format(_fechaInicio!)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin!)}'
+                                : 'Seleccionar fechas',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 14,
+                              color: _fechaInicio != null ? Colors.black87 : Colors.grey,
+                            ),
                           ),
                         ),
                       ),
@@ -378,67 +317,30 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                   ),
                   const SizedBox(height: 24),
                   _buildSection(
-                    title: 'Detalles de la Reserva',
+                    title: 'Precio Estimado',
                     children: [
-                      TextFormField(
-                        controller: _cantidadPersonasController,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        decoration: InputDecoration(
-                          labelText: 'Cantidad de personas *',
-                          labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          prefixIcon: const Icon(Icons.people_outline, size: 20),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3D1F6E).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) return 'Campo obligatorio';
-                          if (int.tryParse(value) == null || int.parse(value) < 1) return 'Debe ser mayor a 0';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _totalPagoController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                        ],
-                        decoration: InputDecoration(
-                          labelText: 'Precio total *',
-                          labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          prefixIcon: Padding(
-                            padding: const EdgeInsets.only(left: 16, right: 8),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '\$',
-                                  style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w600, color: const Color(0xFF3D1F6E)),
-                                ),
-                              ],
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Precio estimado:',
+                              style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.w600),
                             ),
-                          ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) return 'Campo obligatorio';
-                          if (double.tryParse(value) == null) return 'Debe ser un número válido';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _notasController,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          labelText: 'Notas adicionales',
-                          labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            Text(
+                              NumberFormatter.formatCurrencyWithDecimals(_precioEstimado),
+                              style: GoogleFonts.montserrat(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF3D1F6E),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -447,7 +349,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: ElevatedButton.icon(
-                      onPressed: _isSaving ? null : _saveReservation,
+                      onPressed: _isSaving ? null : _saveQuote,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF3D1F6E),
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),

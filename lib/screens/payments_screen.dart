@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models/payment.dart';
+import '../models/reservation.dart';
 import '../models/user.dart';
 import '../services/storage_service.dart';
+import '../screens/payment_edit_screen.dart';
+import '../utils/number_formatter.dart';
+import '../utils/permissions_helper.dart';
 import '../widgets/module_scaffold.dart';
-import 'payment_edit_screen.dart';
 
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
@@ -19,6 +22,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   List<Payment> _payments = [];
   User? _currentUser;
   bool _isLoading = true;
+  bool _canModify = false;
 
   @override
   void initState() {
@@ -30,19 +34,34 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     setState(() => _isLoading = true);
     try {
       final currentUser = await _storageService.getCurrentUser();
+      print('🔍 Usuario actual: ${currentUser?.nombre} - Rol: ${currentUser?.rol}');
+      
       if (currentUser != null) {
         _currentUser = currentUser;
+        _canModify = PermissionsHelper.canModify(currentUser.rol);
+        
+        print('🔍 Cargando pagos para rol: ${currentUser.rol}');
         final payments = currentUser.rol == UserRole.empleado
             ? await _storageService.getPaymentsByEmployee(currentUser.idUsuario!)
             : await _storageService.getAllPayments();
+        
+        print('✅ Pagos cargados: ${payments.length}');
+        
         if (mounted) {
           setState(() {
             _payments = payments;
             _isLoading = false;
           });
         }
+      } else {
+        print('❌ No hay usuario actual');
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ Error cargando pagos: $e');
+      print('Stack trace: $stackTrace');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -163,6 +182,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         return _ReservationPaymentGroup(
           reservationId: reservationId,
           payments: payments,
+          canModify: _canModify,
           onPaymentTap: (payment) => _openPaymentForm(payment: payment),
           onPaymentDelete: (paymentId) => _deletePayment(paymentId),
           onRefresh: _loadPayments,
@@ -176,6 +196,7 @@ class _ReservationPaymentGroup extends StatefulWidget {
   const _ReservationPaymentGroup({
     required this.reservationId,
     required this.payments,
+    required this.canModify,
     required this.onPaymentTap,
     required this.onPaymentDelete,
     required this.onRefresh,
@@ -183,6 +204,7 @@ class _ReservationPaymentGroup extends StatefulWidget {
 
   final int reservationId;
   final List<Payment> payments;
+  final bool canModify;
   final Function(Payment) onPaymentTap;
   final Function(int) onPaymentDelete;
   final VoidCallback onRefresh;
@@ -258,7 +280,7 @@ class _ReservationPaymentGroupState extends State<_ReservationPaymentGroup> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${widget.payments.length} pago(s) • Total: \$${totalReserva.toStringAsFixed(2)}',
+                          '${widget.payments.length} pago(s) • Total: ${NumberFormatter.formatCurrencyWithDecimals(totalReserva)}',
                           style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600]),
                         ),
                       ],
@@ -268,13 +290,13 @@ class _ReservationPaymentGroupState extends State<_ReservationPaymentGroup> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'Pagado: \$${totalPaid.toStringAsFixed(2)}',
+                        'Pagado: ${NumberFormatter.formatCurrencyWithDecimals(totalPaid)}',
                         style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.green),
                       ),
                       if (remaining > 0) ...[
                         const SizedBox(height: 2),
                         Text(
-                          'Restante: \$${remaining.toStringAsFixed(2)}',
+                          'Restante: ${NumberFormatter.formatCurrencyWithDecimals(remaining)}',
                           style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.orange),
                         ),
                       ] else ...[
@@ -298,6 +320,7 @@ class _ReservationPaymentGroupState extends State<_ReservationPaymentGroup> {
           if (_isExpanded)
             ...widget.payments.map((payment) => _PaymentCard(
               payment: payment,
+              canModify: widget.canModify,
               onTap: () => widget.onPaymentTap(payment),
               onDelete: () => widget.onPaymentDelete(payment.id!),
             )),
@@ -310,11 +333,13 @@ class _ReservationPaymentGroupState extends State<_ReservationPaymentGroup> {
 class _PaymentCard extends StatefulWidget {
   const _PaymentCard({
     required this.payment,
+    required this.canModify,
     required this.onTap,
     required this.onDelete,
   });
 
   final Payment payment;
+  final bool canModify;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
@@ -339,7 +364,7 @@ class _PaymentCardState extends State<_PaymentCard> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: widget.onTap,
+            onTap: widget.canModify ? widget.onTap : null,
             borderRadius: BorderRadius.circular(12),
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -419,7 +444,7 @@ class _PaymentCardState extends State<_PaymentCard> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '\$${widget.payment.monto.toStringAsFixed(2)}',
+                          NumberFormatter.formatCurrencyWithDecimals(widget.payment.monto),
                           style: GoogleFonts.montserrat(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -433,12 +458,19 @@ class _PaymentCardState extends State<_PaymentCard> {
                         ),
                       ],
                     ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                      onPressed: widget.onDelete,
-                      tooltip: 'Eliminar pago',
-                    ),
+                    if (widget.canModify) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Color(0xFF3D1F6E), size: 20),
+                        onPressed: widget.onTap,
+                        tooltip: 'Editar pago',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                        onPressed: widget.onDelete,
+                        tooltip: 'Eliminar pago',
+                      ),
+                    ],
                   ],
                 ),
               ),

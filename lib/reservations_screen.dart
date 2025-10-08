@@ -6,6 +6,7 @@ import 'package:aquatour/models/reservation.dart';
 import 'package:aquatour/models/user.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'package:aquatour/screens/reservation_edit_screen.dart';
+import 'package:aquatour/utils/permissions_helper.dart';
 
 class ReservationsScreen extends StatefulWidget {
   const ReservationsScreen({super.key});
@@ -19,6 +20,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
   List<Reservation> _reservations = [];
   User? _currentUser;
   bool _isLoading = true;
+  bool _canModify = false;
 
   @override
   void initState() {
@@ -32,6 +34,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
       final currentUser = await _storageService.getCurrentUser();
       if (currentUser != null) {
         _currentUser = currentUser;
+        _canModify = PermissionsHelper.canModify(currentUser.rol);
         final reservations = currentUser.rol == UserRole.empleado
             ? await _storageService.getReservationsByEmployee(currentUser.idUsuario!)
             : await _storageService.getAllReservations();
@@ -111,6 +114,40 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
     );
   }
 
+  Future<void> _deleteReservation(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmar eliminación', style: GoogleFonts.montserrat()),
+        content: Text('¿Estás seguro de eliminar esta reserva?', style: GoogleFonts.montserrat()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: GoogleFonts.montserrat()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text('Eliminar', style: GoogleFonts.montserrat()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final success = await _storageService.deleteReservation(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'Reserva eliminada' : 'Error eliminando reserva'),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+        if (success) _loadReservations();
+      }
+    }
+  }
+
   Widget _buildReservationsList() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -119,7 +156,9 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
         final reservation = _reservations[index];
         return _ReservationCard(
           reservation: reservation,
+          canModify: _canModify,
           onTap: () => _openReservationForm(reservation: reservation),
+          onDelete: () => _deleteReservation(reservation.id!),
         );
       },
     );
@@ -129,11 +168,15 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
 class _ReservationCard extends StatefulWidget {
   const _ReservationCard({
     required this.reservation,
+    required this.canModify,
     required this.onTap,
+    required this.onDelete,
   });
 
   final Reservation reservation;
+  final bool canModify;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   State<_ReservationCard> createState() => _ReservationCardState();
@@ -167,7 +210,7 @@ class _ReservationCardState extends State<_ReservationCard> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: widget.onTap,
+            onTap: widget.canModify ? widget.onTap : null,
             borderRadius: BorderRadius.circular(12),
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -253,7 +296,19 @@ class _ReservationCardState extends State<_ReservationCard> {
                         ],
                       ),
                     ),
-                    Icon(Icons.chevron_right, color: Colors.grey[400]),
+                    if (widget.canModify) ...[
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 20, color: Color(0xFF3D1F6E)),
+                        onPressed: widget.onTap,
+                        tooltip: 'Editar',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                        onPressed: widget.onDelete,
+                        tooltip: 'Eliminar',
+                      ),
+                    ] else
+                      Icon(Icons.chevron_right, color: Colors.grey[400]),
                   ],
                 ),
               ),

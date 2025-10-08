@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
-import 'package:aquatour/models/tour_package.dart';
+import 'package:aquatour/models/provider.dart';
 import 'package:aquatour/services/storage_service.dart';
-import 'package:aquatour/screens/package_edit_screen.dart';
-import '../utils/number_formatter.dart';
-import '../utils/permissions_helper.dart';
+import 'package:aquatour/screens/provider_edit_screen.dart';
+import 'package:aquatour/utils/permissions_helper.dart';
 
-class TourPackagesScreen extends StatefulWidget {
-  const TourPackagesScreen({super.key});
+class ProvidersScreen extends StatefulWidget {
+  const ProvidersScreen({super.key});
 
   @override
-  State<TourPackagesScreen> createState() => _TourPackagesScreenState();
+  State<ProvidersScreen> createState() => _ProvidersScreenState();
 }
 
-class _TourPackagesScreenState extends State<TourPackagesScreen> {
+class _ProvidersScreenState extends State<ProvidersScreen> {
   final StorageService _storageService = StorageService();
-  List<TourPackage> _packages = [];
+  List<Provider> _providers = [];
   bool _isLoading = true;
   bool _canCreate = false;
 
@@ -24,25 +23,25 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
   void initState() {
     super.initState();
     _checkPermissions();
-    _loadPackages();
+    _loadProviders();
   }
 
   Future<void> _checkPermissions() async {
     final user = await _storageService.getCurrentUser();
     if (user != null && mounted) {
       setState(() {
-        _canCreate = PermissionsHelper.canCreatePackages(user.rol);
+        _canCreate = PermissionsHelper.canCreateProviders(user.rol);
       });
     }
   }
 
-  Future<void> _loadPackages() async {
+  Future<void> _loadProviders() async {
     setState(() => _isLoading = true);
     try {
-      final packages = await _storageService.getPackages();
+      final providers = await _storageService.getProviders();
       if (mounted) {
         setState(() {
-          _packages = packages;
+          _providers = providers;
           _isLoading = false;
         });
       }
@@ -50,29 +49,29 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error cargando paquetes: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error cargando proveedores: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  Future<void> _openPackageForm({TourPackage? package}) async {
+  Future<void> _openProviderForm({Provider? provider}) async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => PackageEditScreen(package: package),
+        builder: (context) => ProviderEditScreen(provider: provider),
       ),
     );
     if (result == true) {
-      _loadPackages();
+      _loadProviders();
     }
   }
 
-  Future<void> _deletePackage(int id) async {
+  Future<void> _deleteProvider(int id) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Confirmar eliminación', style: GoogleFonts.montserrat()),
-        content: Text('¿Estás seguro de eliminar este paquete?', style: GoogleFonts.montserrat()),
+        content: Text('¿Estás seguro de eliminar este proveedor?', style: GoogleFonts.montserrat()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -88,15 +87,15 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
     );
 
     if (confirm == true) {
-      final success = await _storageService.deletePackage(id);
+      final success = await _storageService.deleteProvider(id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success ? 'Paquete eliminado' : 'Error eliminando paquete'),
+            content: Text(success ? 'Proveedor eliminado' : 'Error eliminando proveedor'),
             backgroundColor: success ? Colors.green : Colors.red,
           ),
         );
-        if (success) _loadPackages();
+        if (success) _loadProviders();
       }
     }
   }
@@ -104,20 +103,20 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
   @override
   Widget build(BuildContext context) {
     return ModuleScaffold(
-      title: 'Paquetes turísticos',
-      subtitle: 'Centraliza paquetes base y promociones para el equipo',
-      icon: Icons.card_travel_rounded,
+      title: 'Proveedores',
+      subtitle: 'Estandariza la relación con tus operadores',
+      icon: Icons.business_rounded,
       floatingActionButton: _canCreate ? FloatingActionButton.extended(
-        onPressed: () => _openPackageForm(),
+        onPressed: () => _openProviderForm(),
         backgroundColor: const Color(0xFFf7941e),
         icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: Text('Nuevo paquete', style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.w600)),
+        label: Text('Nuevo proveedor', style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.w600)),
       ) : null,
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _packages.isEmpty
+          : _providers.isEmpty
               ? _buildEmptyState()
-              : _buildPackagesList(),
+              : _buildProvidersList(),
     );
   }
 
@@ -126,15 +125,15 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.card_travel_rounded, size: 80, color: Colors.grey[300]),
+          Icon(Icons.business_rounded, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
-            'No hay paquetes turísticos',
+            'No hay proveedores',
             style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[600]),
           ),
           const SizedBox(height: 8),
           Text(
-            'Crea tu primer paquete usando el botón naranja',
+            'Crea tu primer proveedor usando el botón naranja',
             style: GoogleFonts.montserrat(fontSize: 14, color: Colors.grey[500]),
           ),
         ],
@@ -142,42 +141,44 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
     );
   }
 
-  Widget _buildPackagesList() {
+  Widget _buildProvidersList() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _packages.length,
+      itemCount: _providers.length,
       itemBuilder: (context, index) {
-        final package = _packages[index];
-        return _PackageCard(
-          package: package,
-          onTap: () => _openPackageForm(package: package),
-          onDelete: () => _deletePackage(package.id!),
+        final provider = _providers[index];
+        return _ProviderCard(
+          provider: provider,
+          onTap: () => _openProviderForm(provider: provider),
+          onDelete: () => _deleteProvider(provider.id!),
         );
       },
     );
   }
 }
 
-class _PackageCard extends StatefulWidget {
-  const _PackageCard({
-    required this.package,
+class _ProviderCard extends StatefulWidget {
+  const _ProviderCard({
+    required this.provider,
     required this.onTap,
     required this.onDelete,
   });
 
-  final TourPackage package;
+  final Provider provider;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
   @override
-  State<_PackageCard> createState() => _PackageCardState();
+  State<_ProviderCard> createState() => _ProviderCardState();
 }
 
-class _PackageCardState extends State<_PackageCard> {
+class _ProviderCardState extends State<_ProviderCard> {
   bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = widget.provider.estado == ProviderStatus.activo ? Colors.green : Colors.grey;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -211,7 +212,7 @@ class _PackageCardState extends State<_PackageCard> {
                       color: const Color(0xFF3D1F6E).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.card_travel, color: Color(0xFF3D1F6E), size: 24),
+                    child: const Icon(Icons.business, color: Color(0xFF3D1F6E), size: 24),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -219,15 +220,30 @@ class _PackageCardState extends State<_PackageCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.package.nombre,
+                          widget.provider.nombre,
                           style: GoogleFonts.montserrat(fontWeight: FontWeight.w600, fontSize: 15),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${widget.package.duracionDias} días • ${NumberFormatter.formatCurrency(widget.package.precioBase)} • ${widget.package.destinosIds.length} destino(s)',
+                          '${widget.provider.tipoProveedor} • ${widget.provider.telefono}',
                           style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600]),
                         ),
                       ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      widget.provider.estado.displayName,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -244,80 +260,6 @@ class _PackageCardState extends State<_PackageCard> {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PackageSummaryCard extends StatelessWidget {
-  const _PackageSummaryCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.description,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3D1F6E).withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon, color: const Color(0xFF3D1F6E)),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              label,
-              style: GoogleFonts.montserrat(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF6F6F6F),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: GoogleFonts.montserrat(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF1F1F1F),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              description,
-              style: GoogleFonts.montserrat(
-                fontSize: 12.5,
-                height: 1.5,
-                color: const Color(0xFF4B4B4B),
-              ),
-            ),
-          ],
         ),
       ),
     );

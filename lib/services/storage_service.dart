@@ -7,6 +7,8 @@ import '../models/client.dart';
 import '../models/contact.dart';
 import '../models/destination.dart';
 import '../models/payment.dart';
+import '../models/provider.dart';
+import '../models/quote.dart';
 import '../models/reservation.dart';
 import '../models/tour_package.dart';
 import '../models/user.dart';
@@ -497,9 +499,10 @@ class StorageService {
 
   Future<Map<String, dynamic>> getPerformanceMetrics(int userId) async {
     try {
-      // Obtener reservas y pagos del empleado
+      // Obtener reservas, pagos y cotizaciones del empleado
       final reservations = await getReservationsByEmployee(userId);
       final payments = await getPaymentsByEmployee(userId);
+      final quotes = await getQuotesByEmployee(userId);
       
       // Calcular métricas de reservas
       final totalReservations = reservations.length;
@@ -537,6 +540,11 @@ class StorageService {
       // Contar pagos completados (ventas = pagos realizados)
       final totalPayments = payments.length;
       
+      // Calcular métricas de cotizaciones
+      final totalQuotes = quotes.length;
+      final acceptedQuotes = quotes.where((q) => q.estado == QuoteStatus.aceptada).length;
+      final rejectedQuotes = quotes.where((q) => q.estado == QuoteStatus.rechazada).length;
+      
       // Obtener clientes del empleado
       final clients = await getClients(forEmployeeId: userId);
       
@@ -556,9 +564,10 @@ class StorageService {
           'cancelled': canceledCount,
         },
         'quotes': {
-          'total': 0,
-          'accepted': 0,
-          'conversionRate': 0.0,
+          'total': totalQuotes,
+          'accepted': acceptedQuotes,
+          'rejected': rejectedQuotes,
+          'pending': totalQuotes - acceptedQuotes - rejectedQuotes,
         },
         'clients': {
           'total': clients.length,
@@ -570,7 +579,7 @@ class StorageService {
       return {
         'sales': {'total': 0, 'completed': 0, 'totalRevenue': 0.0, 'averageSale': 0.0},
         'reservations': {'total': 0, 'confirmed': 0, 'pending': 0, 'inProcess': 0, 'paid': 0, 'cancelled': 0},
-        'quotes': {'total': 0, 'accepted': 0, 'conversionRate': 0.0},
+        'quotes': {'total': 0, 'accepted': 0, 'rejected': 0, 'pending': 0},
         'clients': {'total': 0},
       };
     }
@@ -713,6 +722,86 @@ class StorageService {
       return true;
     } catch (e) {
       debugPrint('❌ Error eliminando paquete: $e');
+      return false;
+    }
+  }
+
+  // ===== COTIZACIONES =====
+
+  Future<List<Quote>> getQuotes() async {
+    try {
+      final quotesData = await _apiService.getQuotes(_authToken);
+      return quotesData.map((data) => Quote.fromMap(data)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo cotizaciones: $e');
+      return [];
+    }
+  }
+
+  Future<List<Quote>> getQuotesByEmployee(int employeeId) async {
+    try {
+      final quotesData = await _apiService.getQuotesByEmployee(employeeId, _authToken);
+      return quotesData.map((data) => Quote.fromMap(data)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo cotizaciones del empleado: $e');
+      return [];
+    }
+  }
+
+  Future<Quote> saveQuote(Quote quote) async {
+    try {
+      final quoteData = quote.toMap();
+      final responseData = quote.id == null
+          ? await _apiService.createQuote(quoteData, _authToken)
+          : await _apiService.updateQuote(quote.id!, quoteData, _authToken);
+      return Quote.fromMap(responseData);
+    } catch (e) {
+      debugPrint('❌ Error guardando cotización: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> deleteQuote(int id) async {
+    try {
+      await _apiService.deleteQuote(id, _authToken);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error eliminando cotización: $e');
+      return false;
+    }
+  }
+
+  // ===== PROVEEDORES =====
+
+  Future<List<Provider>> getProviders() async {
+    try {
+      final providersData = await _apiService.getProviders(_authToken);
+      return providersData.map((data) => Provider.fromMap(data)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo proveedores: $e');
+      return [];
+    }
+  }
+
+  Future<Provider> saveProvider(Provider provider) async {
+    try {
+      final providerData = provider.toMap();
+      final responseData = provider.id == null
+          ? await _apiService.createProvider(providerData, _authToken)
+          : await _apiService.updateProvider(provider.id!, providerData, _authToken);
+      return Provider.fromMap(responseData);
+    } catch (e) {
+      debugPrint('❌ Error guardando proveedor: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> deleteProvider(int id) async {
+    try {
+      await _apiService.deleteProvider(id, _authToken);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error eliminando proveedor: $e');
       return false;
     }
   }

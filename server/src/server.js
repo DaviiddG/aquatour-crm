@@ -10,6 +10,8 @@ import destinationRoutes from './routes/destinations.routes.js';
 import reservationRoutes from './routes/reservations.routes.js';
 import paymentRoutes from './routes/payments.routes.js';
 import packageRoutes from './routes/packages.routes.js';
+import quoteRoutes from './routes/quotes.routes.js';
+import providerRoutes from './routes/providers.routes.js';
 import { errorHandler } from './utils/error-handler.js';
 
 dotenv.config();
@@ -35,6 +37,8 @@ app.use('/api/destinations', destinationRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/packages', packageRoutes);
+app.use('/api/quotes', quoteRoutes);
+app.use('/api/providers', providerRoutes);
 
 app.use(errorHandler);
 

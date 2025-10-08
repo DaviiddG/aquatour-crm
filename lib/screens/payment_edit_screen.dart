@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../models/payment.dart';
 import '../models/reservation.dart';
 import '../services/storage_service.dart';
+import '../utils/number_formatter.dart';
 
 class PaymentEditScreen extends StatefulWidget {
   final Payment? payment;
@@ -232,7 +233,7 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                           return DropdownMenuItem<int>(
                             value: reservation.id,
                             child: Text(
-                              'Reserva #${reservation.id} - \$${reservation.totalPago.toStringAsFixed(2)}',
+                              'Reserva #${reservation.id} - ${NumberFormatter.formatCurrencyWithDecimals(reservation.totalPago)}',
                               style: GoogleFonts.montserrat(fontSize: 14),
                             ),
                           );

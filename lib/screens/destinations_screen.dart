@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
 import 'package:aquatour/models/destination.dart';
 import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/utils/permissions_helper.dart';
 import 'destination_edit_screen.dart';
 
 class DestinationsScreen extends StatefulWidget {
@@ -16,11 +17,22 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
   final StorageService _storageService = StorageService();
   List<Destination> _destinations = [];
   bool _isLoading = true;
+  bool _canCreate = false;
 
   @override
   void initState() {
     super.initState();
+    _checkPermissions();
     _loadDestinations();
+  }
+
+  Future<void> _checkPermissions() async {
+    final user = await _storageService.getCurrentUser();
+    if (user != null && mounted) {
+      setState(() {
+        _canCreate = PermissionsHelper.canCreateDestinations(user.rol);
+      });
+    }
   }
 
   Future<void> _loadDestinations() async {
@@ -73,7 +85,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
       title: 'Destinos disponibles',
       subtitle: 'Explora y administra el portafolio de viajes para tus clientes.',
       icon: Icons.flight_takeoff_rounded,
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: _canCreate ? FloatingActionButton.extended(
         onPressed: () async {
           final result = await Navigator.of(context).push(
             MaterialPageRoute(
@@ -87,7 +99,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
         backgroundColor: const Color(0xFFfdb913),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nuevo destino'),
-      ),
+      ) : null,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth > 1180;

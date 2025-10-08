@@ -5,6 +5,7 @@ import 'package:aquatour/screens/client_edit_screen.dart';
 import 'package:aquatour/services/api_service.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'package:aquatour/models/user.dart';
+import 'package:aquatour/utils/permissions_helper.dart';
 
 enum _ClientFormResult { created, updated, none }
 
@@ -22,6 +23,7 @@ class _ClientListScreenState extends State<ClientListScreen> {
   bool _isLoading = true;
   String? _token;
   User? _currentUser;
+  bool _canModify = false;
 
   double? _calculateAverageSatisfaction() {
     if (_clients.isEmpty) return null;
@@ -75,6 +77,11 @@ class _ClientListScreenState extends State<ClientListScreen> {
       final currentUser = await storage.getCurrentUser();
 
       _currentUser = currentUser;
+      
+      // Verificar permisos
+      if (currentUser != null) {
+        _canModify = PermissionsHelper.canModify(currentUser.rol);
+      }
 
       if (_token == null && currentUser == null) {
         // No existe sesión activa, redirigir al login
@@ -149,12 +156,17 @@ class _ClientListScreenState extends State<ClientListScreen> {
             try {
               // Obtener el usuario autenticado para obtener su ID
               final currentUser = await StorageService().getCurrentUser();
-              if (currentUser == null) {
-                throw Exception('Usuario no autenticado');
+              _token = await StorageService.getToken();
+              if (currentUser != null) {
+                _canModify = PermissionsHelper.canModify(currentUser.rol);
+              }
+
+              if (!_canModify) {
+                throw Exception('No tienes permiso para modificar clientes');
               }
 
               final clientMap = client.toJson();
-              clientMap['id_usuario'] = currentUser.idUsuario;
+              clientMap['id_usuario'] = currentUser!.idUsuario;
 
               if (clientData == null) {
                 // Crear nuevo cliente
@@ -394,6 +406,7 @@ class _ClientListScreenState extends State<ClientListScreen> {
   Widget _buildClientItem(Map<String, dynamic> client) {
     return _ClientCard(
       client: client,
+      canModify: _canModify,
       onEdit: () => _openClientForm(clientData: client),
       onDelete: () => _deleteClient(client['id'] ?? 0),
     );
@@ -891,11 +904,13 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
 class _ClientCard extends StatefulWidget {
   const _ClientCard({
     required this.client,
+    required this.canModify,
     required this.onEdit,
     required this.onDelete,
   });
 
   final Map<String, dynamic> client;
+  final bool canModify;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -935,7 +950,7 @@ class _ClientCardState extends State<_ClientCard> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: widget.onEdit,
+            onTap: widget.canModify ? widget.onEdit : null,
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -965,16 +980,18 @@ class _ClientCardState extends State<_ClientCard> {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Color(0xFF3D1F6E), size: 20),
-                    onPressed: widget.onEdit,
-                    tooltip: 'Editar cliente',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                    onPressed: widget.onDelete,
-                    tooltip: 'Eliminar cliente',
-                  ),
+                  if (widget.canModify) ...[
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Color(0xFF3D1F6E), size: 20),
+                      onPressed: widget.onEdit,
+                      tooltip: 'Editar cliente',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                      onPressed: widget.onDelete,
+                      tooltip: 'Eliminar cliente',
+                    ),
+                  ],
                 ],
               ),
             ),

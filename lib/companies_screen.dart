@@ -9,8 +9,8 @@ class CompaniesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ModuleScaffold(
       title: 'Empresas aliadas',
-      subtitle: 'Centraliza convenios, contactos y acuerdos comerciales',
-      icon: Icons.business_center_rounded,
+      subtitle: 'Estandariza la relación con tus operadores',
+      icon: Icons.business_rounded,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Funcionalidad en desarrollo')),
@@ -19,16 +19,16 @@ class CompaniesScreen extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('Agregar empresa'),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 720;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _HeadlineCard(isCompact: isCompact),
-              const SizedBox(height: 24),
-              Expanded(
-                child: GridView.count(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HeadlineCard(),
+          const SizedBox(height: 24),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 720;
+                return GridView.count(
                   crossAxisCount: isCompact ? 1 : 2,
                   crossAxisSpacing: 18,
                   mainAxisSpacing: 18,
@@ -59,20 +59,18 @@ class CompaniesScreen extends StatelessWidget {
                           'Un repositorio único para brochures, tarifas, catálogos y políticas de cada operador turístico.',
                     ),
                   ],
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _HeadlineCard extends StatelessWidget {
-  const _HeadlineCard({required this.isCompact});
-
-  final bool isCompact;
+  const _HeadlineCard();
 
   @override
   Widget build(BuildContext context) {
@@ -89,10 +87,7 @@ class _HeadlineCard extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: isCompact ? 18 : 32,
-          vertical: isCompact ? 24 : 32,
-        ),
+        padding: const EdgeInsets.all(32),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -113,7 +108,7 @@ class _HeadlineCard extends StatelessWidget {
                   Text(
                     'Estandariza la relación con tus operadores',
                     style: GoogleFonts.montserrat(
-                      fontSize: isCompact ? 18 : 20,
+                      fontSize: 20,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                     ),
