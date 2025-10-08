@@ -10,8 +10,12 @@ const pool = mysql.createPool({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   waitForConnections: true,
-  connectionLimit: 3,
+  connectionLimit: 3, // Reducido para plan gratuito de Clever Cloud (max 5)
   queueLimit: 0,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 0,
+  idleTimeout: 60000, // Cerrar conexiones inactivas después de 60 segundos
+  maxIdle: 2, // Máximo de conexiones inactivas
 });
 
 export const getConnection = () => pool.getConnection();

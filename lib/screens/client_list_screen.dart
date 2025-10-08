@@ -287,11 +287,11 @@ class _ClientListScreenState extends State<ClientListScreen> {
               value: activeClients.toString(),
               description: 'Consulta métricas por asesor y ciclo de vida.',
             ),
-            const _SummaryCard(
-              icon: Icons.insights_rounded,
-              label: 'Conversiones',
-              value: '0%',
-              description: 'Aceptaciones vs. cotizaciones realizadas.',
+            _SummaryCard(
+              icon: Icons.location_on_rounded,
+              label: 'Países de origen',
+              value: _clients.map((c) => c['pais'] ?? 'N/A').toSet().length.toString(),
+              description: 'Diversidad geográfica de tu cartera.',
             ),
             _SummaryCard(
               icon: Icons.sentiment_satisfied_alt_rounded,
@@ -392,37 +392,10 @@ class _ClientListScreenState extends State<ClientListScreen> {
   }
 
   Widget _buildClientItem(Map<String, dynamic> client) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: CircleAvatar(
-        backgroundColor: const Color(0xFF3D1F6E).withOpacity(0.1),
-        child: Text(
-          (client['nombres']?.toString() ?? '?')[0].toUpperCase(),
-          style: const TextStyle(color: Color(0xFF3D1F6E), fontWeight: FontWeight.bold),
-        ),
-      ),
-      title: Text(
-        '${client['nombres'] ?? 'N/A'} ${client['apellidos'] ?? ''}',
-        style: GoogleFonts.montserrat(fontWeight: FontWeight.w500),
-      ),
-      subtitle: Text(
-        client['email'] ?? 'Sin email',
-        style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[600]),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.edit, color: Color(0xFF3D1F6E)),
-            onPressed: () => _openClientForm(clientData: client),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () => _deleteClient(client['id'] ?? 0),
-          ),
-        ],
-      ),
-      onTap: () => _openClientForm(clientData: client),
+    return _ClientCard(
+      client: client,
+      onEdit: () => _openClientForm(clientData: client),
+      onDelete: () => _deleteClient(client['id'] ?? 0),
     );
   }
 
@@ -907,6 +880,103 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
                   ],
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ClientCard extends StatefulWidget {
+  const _ClientCard({
+    required this.client,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Map<String, dynamic> client;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  State<_ClientCard> createState() => _ClientCardState();
+}
+
+class _ClientCardState extends State<_ClientCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        transform: Matrix4.translationValues(0, _isHovered ? -2 : 0, 0),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _isHovered ? const Color(0xFF3D1F6E) : Colors.grey[200]!,
+            width: _isHovered ? 2 : 1,
+          ),
+          boxShadow: _isHovered
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF3D1F6E).withOpacity(0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onEdit,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: const Color(0xFF3D1F6E).withOpacity(0.1),
+                    child: Text(
+                      (widget.client['nombres']?.toString() ?? '?')[0].toUpperCase(),
+                      style: const TextStyle(color: Color(0xFF3D1F6E), fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${widget.client['nombres'] ?? 'N/A'} ${widget.client['apellidos'] ?? ''}',
+                          style: GoogleFonts.montserrat(fontWeight: FontWeight.w600, fontSize: 15),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.client['email'] ?? 'Sin email',
+                          style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Color(0xFF3D1F6E), size: 20),
+                    onPressed: widget.onEdit,
+                    tooltip: 'Editar cliente',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                    onPressed: widget.onDelete,
+                    tooltip: 'Eliminar cliente',
+                  ),
+                ],
+              ),
             ),
           ),
         ),

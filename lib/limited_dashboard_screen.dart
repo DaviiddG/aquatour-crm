@@ -11,6 +11,7 @@ import 'package:aquatour/services/storage_service.dart';
 import 'package:aquatour/screens/destinations_screen.dart';
 import 'package:aquatour/screens/tour_packages_screen.dart';
 import 'package:aquatour/screens/client_list_screen.dart';
+import 'package:aquatour/screens/payments_screen.dart';
 
 class _LimitedModule {
   const _LimitedModule({
@@ -55,6 +56,13 @@ class _LimitedDashboardScreenState extends State<LimitedDashboardScreen> {
           description: 'Revisa viajes agendados y actualiza la información necesaria.',
           icon: Icons.book_online,
           builder: (context) => const ReservationsScreen(),
+        ),
+        _LimitedModule(
+          id: 'payments',
+          title: 'Pagos',
+          description: 'Registra y controla los pagos de tus clientes.',
+          icon: Icons.payment_rounded,
+          builder: (context) => const PaymentsScreen(),
         ),
         _LimitedModule(
           id: 'contacts',

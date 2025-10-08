@@ -5,7 +5,10 @@ import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
 import '../models/client.dart';
 import '../models/contact.dart';
+import '../models/destination.dart';
+import '../models/payment.dart';
 import '../models/reservation.dart';
+import '../models/tour_package.dart';
 import '../models/user.dart';
 import 'api_service.dart';
 
@@ -63,25 +66,22 @@ class StorageService {
   Stream<List<Reservation>> get reservationsStream => _reservationsController.stream;
 
   Future<List<Client>> getClients({int? forEmployeeId}) async {
-    final raw = html.window.localStorage[_clientsStorageKey];
-    if (raw == null || raw.isEmpty) {
+    try {
+      final List<dynamic> clientsData;
+      
+      if (forEmployeeId != null) {
+        clientsData = await _apiService.getClientsByUser(forEmployeeId, _authToken);
+      } else {
+        clientsData = await _apiService.getClients(_authToken);
+      }
+      
+      return clientsData
+          .map((clientMap) => Client.fromMap(clientMap as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo clientes: $e');
       return [];
     }
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is List) {
-        final clients = decoded
-            .map((item) => Client.fromMap(Map<String, dynamic>.from(item as Map)))
-            .toList();
-        if (forEmployeeId != null) {
-          return clients.where((client) => client.idEmpleado == forEmployeeId).toList();
-        }
-        return clients;
-      }
-    } catch (e) {
-      debugPrint('⚠️ Error parsing clients: $e');
-    }
-    return [];
   }
 
   Future<Client> saveClient(Client client) async {
@@ -143,59 +143,6 @@ class StorageService {
     return [];
   }
 
-  Future<Reservation> saveReservation(Reservation reservation) async {
-    final reservations = await getReservations();
-    final isUpdate = reservation.id != null;
-    final now = DateTime.now();
-    final Reservation toPersist = reservation.copyWith(
-      fechaReserva: reservation.fechaReserva ?? now,
-    );
-
-    final List<Reservation> updatedList;
-    if (isUpdate) {
-      updatedList = reservations
-          .map((existing) => existing.id == reservation.id ? toPersist : existing)
-          .toList();
-    } else {
-      final nextId = (reservations.map((r) => r.id ?? 0).fold<int>(0, (prev, element) => element > prev ? element : prev)) + 1;
-      updatedList = List<Reservation>.from(reservations)
-        ..add(toPersist.copyWith(id: nextId));
-    }
-
-    await _persistReservations(updatedList);
-    _reservationsController.add(updatedList);
-    return isUpdate ? toPersist : updatedList.last;
-  }
-
-  Future<void> updateReservationStatus({
-    required int reservationId,
-    required ReservationStatus status,
-  }) async {
-    final reservations = await getReservations();
-    final updated = reservations
-        .map((reservation) => reservation.id == reservationId
-            ? reservation.copyWith(estado: status)
-            : reservation)
-        .toList();
-    await _persistReservations(updated);
-    _reservationsController.add(updated);
-  }
-
-  Future<void> deleteReservation(int reservationId) async {
-    final reservations = await getReservations();
-    final updated = reservations.where((reservation) => reservation.id != reservationId).toList();
-    await _persistReservations(updated);
-    _reservationsController.add(updated);
-  }
-
-  Future<void> _persistReservations(List<Reservation> reservations) async {
-    try {
-      final encoded = jsonEncode(reservations.map((reservation) => reservation.toMap()).toList());
-      html.window.localStorage[_reservationsStorageKey] = encoded;
-    } catch (e) {
-      debugPrint('⚠️ Error persisting reservations: $e');
-    }
-  }
 
   // Configurar token de autenticación
   void setAuthToken(String token) {
@@ -407,9 +354,20 @@ class StorageService {
   Future<int> insertContact(Contact contact) async {
     try {
       final response = await _apiService.createContact(contact.toMap(), _authToken);
-      final newId = response['id'];
+      final Map<String, dynamic>? contactData =
+          response['contact'] is Map<String, dynamic> ? response['contact'] as Map<String, dynamic> : null;
+      final dynamic idValue = contactData?['id'] ?? response['id'];
+      if (idValue == null) {
+        throw Exception('La API no devolvió un ID para el contacto creado');
+      }
+
+      final int? newId = idValue is int ? idValue : int.tryParse(idValue.toString());
+      if (newId == null) {
+        throw Exception('ID de contacto inválido: $idValue');
+      }
+
       print('✅ Contacto creado con ID: $newId');
-      return newId as int;
+      return newId;
     } catch (e) {
       print('❌ Error creando contacto: $e');
       rethrow;
@@ -438,6 +396,94 @@ class StorageService {
     }
   }
 
+  // ===== DESTINOS =====
+
+  Future<List<Destination>> getDestinations() async {
+    return getAllDestinations();
+  }
+
+  Future<List<Destination>> getAllDestinations() async {
+    try {
+      final destinationsData = await _apiService.getDestinations(_authToken);
+      return destinationsData.map((destMap) => Destination.fromMap(destMap as Map<String, dynamic>)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo destinos: $e');
+      return [];
+    }
+  }
+
+  Future<Destination> saveDestination(Destination destination) async {
+    try {
+      if (destination.id != null) {
+        final response = await _apiService.updateDestination(destination.id!, destination.toMap(), _authToken);
+        return Destination.fromMap(response['destination'] ?? response);
+      } else {
+        final response = await _apiService.createDestination(destination.toMap(), _authToken);
+        return Destination.fromMap(response['destination'] ?? response);
+      }
+    } catch (e) {
+      debugPrint('❌ Error guardando destino: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> deleteDestination(int id) async {
+    try {
+      await _apiService.deleteDestination(id, _authToken);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error eliminando destino: $e');
+      return false;
+    }
+  }
+
+  // ===== RESERVAS =====
+
+  Future<List<Reservation>> getAllReservations() async {
+    try {
+      final reservationsData = await _apiService.getReservations(_authToken);
+      return reservationsData.map((resMap) => Reservation.fromMap(resMap as Map<String, dynamic>)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo reservas: $e');
+      return [];
+    }
+  }
+
+  Future<List<Reservation>> getReservationsByEmployee(int idEmpleado) async {
+    try {
+      final reservationsData = await _apiService.getReservationsByEmployee(idEmpleado, _authToken);
+      return reservationsData.map((resMap) => Reservation.fromMap(resMap as Map<String, dynamic>)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo reservas del empleado: $e');
+      return [];
+    }
+  }
+
+  Future<Reservation> saveReservation(Reservation reservation) async {
+    try {
+      if (reservation.id != null) {
+        final response = await _apiService.updateReservation(reservation.id!, reservation.toMap(), _authToken);
+        return Reservation.fromMap(response['reservation'] ?? response);
+      } else {
+        final response = await _apiService.createReservation(reservation.toMap(), _authToken);
+        return Reservation.fromMap(response['reservation'] ?? response);
+      }
+    } catch (e) {
+      debugPrint('❌ Error guardando reserva: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> deleteReservation(int id) async {
+    try {
+      await _apiService.deleteReservation(id, _authToken);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error eliminando reserva: $e');
+      return false;
+    }
+  }
+
   // ===== DASHBOARD Y ESTADÍSTICAS =====
 
   Future<Map<String, dynamic>> getDashboardStats() async {
@@ -449,81 +495,245 @@ class StorageService {
     }
   }
 
-  // ===== INDICADORES DE DESEMPEÑO =====
-
-  /// Obtiene métricas de rendimiento específicas para un usuario
-  /// Incluye ventas completadas, reservas confirmadas y cotizaciones aceptadas
   Future<Map<String, dynamic>> getPerformanceMetrics(int userId) async {
     try {
-      final reservations = await getReservations(forEmployeeId: userId);
-      final clients = await getClients(forEmployeeId: userId);
-
-      if (reservations.isEmpty && clients.isEmpty) {
-        final mockMetrics = await _generateMockPerformanceData(userId);
-        debugPrint('📊 Métricas mock generadas para usuario $userId');
-        return mockMetrics;
+      // Obtener reservas y pagos del empleado
+      final reservations = await getReservationsByEmployee(userId);
+      final payments = await getPaymentsByEmployee(userId);
+      
+      // Calcular métricas de reservas
+      final totalReservations = reservations.length;
+      final confirmedCount = reservations.where((r) => r.estado == ReservationStatus.confirmada).length;
+      final canceledCount = reservations.where((r) => r.estado == ReservationStatus.cancelada).length;
+      
+      // Calcular reservas en proceso (pendientes con pagos parciales) y pagadas
+      int inProcessCount = 0;
+      int paidCount = 0;
+      int pendingCount = 0;
+      
+      for (final reservation in reservations) {
+        if (reservation.estado == ReservationStatus.pendiente) {
+          final reservationPayments = await getPaymentsByReservation(reservation.id!);
+          final totalPaid = reservationPayments.fold<double>(0.0, (sum, p) => sum + p.monto);
+          
+          if (totalPaid > 0 && totalPaid < reservation.totalPago) {
+            inProcessCount++; // Tiene pagos parciales
+          } else if (totalPaid >= reservation.totalPago) {
+            paidCount++; // Completamente pagada
+          } else {
+            pendingCount++; // Sin pagos
+          }
+        } else if (reservation.estado == ReservationStatus.confirmada) {
+          paidCount++; // Confirmadas = pagadas
+        }
       }
-
-      final confirmedReservations = reservations
-          .where((reservation) => reservation.estado == ReservationStatus.confirmada)
-          .toList();
-      final pendingCount = reservations
-          .where((reservation) => reservation.estado == ReservationStatus.pendiente)
-          .length;
-      final cancelledCount = reservations
-          .where((reservation) => reservation.estado == ReservationStatus.cancelada)
-          .length;
-      final totalRevenue = confirmedReservations.fold<double>(0, (sum, reservation) => sum + reservation.totalPago);
-
-      final metrics = _getDefaultMetrics();
-      metrics['sales'] = {
-        'total': confirmedReservations.length,
-        'completed': confirmedReservations.length,
-        'totalRevenue': totalRevenue,
-        'averageSale': confirmedReservations.isEmpty ? 0.0 : totalRevenue / confirmedReservations.length,
+      
+      // Calcular ingresos REALES desde pagos (no desde reservas)
+      final totalRevenue = payments.fold<double>(
+        0.0,
+        (sum, payment) => sum + payment.monto,
+      );
+      
+      // Contar pagos completados (ventas = pagos realizados)
+      final totalPayments = payments.length;
+      
+      // Obtener clientes del empleado
+      final clients = await getClients(forEmployeeId: userId);
+      
+      return {
+        'sales': {
+          'total': totalPayments,
+          'completed': totalPayments,
+          'totalRevenue': totalRevenue,
+          'averageSale': totalPayments > 0 ? totalRevenue / totalPayments : 0.0,
+        },
+        'reservations': {
+          'total': totalReservations,
+          'confirmed': confirmedCount,
+          'pending': pendingCount,
+          'inProcess': inProcessCount,
+          'paid': paidCount,
+          'cancelled': canceledCount,
+        },
+        'quotes': {
+          'total': 0,
+          'accepted': 0,
+          'conversionRate': 0.0,
+        },
+        'clients': {
+          'total': clients.length,
+        },
+        'lastUpdated': DateTime.now().toIso8601String(),
       };
-      metrics['reservations'] = {
-        'total': reservations.length,
-        'confirmed': confirmedReservations.length,
-        'pending': pendingCount,
-        'cancelled': cancelledCount,
-      };
-      metrics['quotes'] ??= {
-        'total': 0,
-        'accepted': 0,
-        'conversionRate': 0.0,
-      };
-      metrics['clients'] = {
-        'total': clients.length,
-      };
-      metrics['lastUpdated'] = DateTime.now().toIso8601String();
-      return metrics;
     } catch (e) {
       debugPrint('❌ Error obteniendo métricas de desempeño: $e');
-      return _getDefaultMetrics();
+      return {
+        'sales': {'total': 0, 'completed': 0, 'totalRevenue': 0.0, 'averageSale': 0.0},
+        'reservations': {'total': 0, 'confirmed': 0, 'pending': 0, 'inProcess': 0, 'paid': 0, 'cancelled': 0},
+        'quotes': {'total': 0, 'accepted': 0, 'conversionRate': 0.0},
+        'clients': {'total': 0},
+      };
     }
   }
+
+  // ===== PAGOS =====
+
+  Future<List<Payment>> getAllPayments() async {
+    try {
+      final paymentsData = await _apiService.getPayments(_authToken);
+      return paymentsData.map((data) => Payment.fromMap(data)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo pagos: $e');
+      return [];
+    }
+  }
+
+  Future<List<Payment>> getPaymentsByEmployee(int idEmpleado) async {
+    try {
+      final paymentsData = await _apiService.getPaymentsByEmployee(idEmpleado, _authToken);
+      return paymentsData.map((data) => Payment.fromMap(data)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo pagos del empleado: $e');
+      return [];
+    }
+  }
+
+  Future<List<Payment>> getPaymentsByReservation(int idReserva) async {
+    try {
+      final paymentsData = await _apiService.getPaymentsByReservation(idReserva, _authToken);
+      return paymentsData.map((data) => Payment.fromMap(data)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo pagos de la reserva: $e');
+      return [];
+    }
+  }
+
+  Future<Payment> savePayment(Payment payment) async {
+    try {
+      final paymentData = payment.toMap();
+      final responseData = payment.id == null
+          ? await _apiService.createPayment(paymentData, _authToken)
+          : await _apiService.updatePayment(payment.id!, paymentData, _authToken);
+      return Payment.fromMap(responseData);
+    } catch (e) {
+      debugPrint('❌ Error guardando pago: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> deletePayment(int id) async {
+    try {
+      await _apiService.deletePayment(id, _authToken);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error eliminando pago: $e');
+      return false;
+    }
+  }
+
+  /// Calcula el monto restante por pagar de una reserva
+  Future<double> getRemainingAmount(int idReserva) async {
+    try {
+      // Obtener la reserva
+      final reservations = await getAllReservations();
+      final reservation = reservations.firstWhere((r) => r.id == idReserva);
+      
+      // Obtener todos los pagos de esta reserva
+      final payments = await getPaymentsByReservation(idReserva);
+      
+      // Sumar todos los pagos
+      final totalPaid = payments.fold<double>(0.0, (sum, payment) => sum + payment.monto);
+      
+      // Calcular restante
+      final remaining = reservation.totalPago - totalPaid;
+      return remaining > 0 ? remaining : 0.0;
+    } catch (e) {
+      debugPrint('❌ Error calculando monto restante: $e');
+      return 0.0;
+    }
+  }
+
+  /// Obtiene información de saldo de una reserva
+  Future<Map<String, dynamic>> getReservationBalance(int idReserva) async {
+    try {
+      final reservations = await getAllReservations();
+      final reservation = reservations.firstWhere((r) => r.id == idReserva);
+      final payments = await getPaymentsByReservation(idReserva);
+      
+      final totalPaid = payments.fold<double>(0.0, (sum, payment) => sum + payment.monto);
+      final remaining = reservation.totalPago - totalPaid;
+      
+      return {
+        'totalReserva': reservation.totalPago,
+        'totalPagado': totalPaid,
+        'montoRestante': remaining > 0 ? remaining : 0.0,
+        'porcentajePagado': reservation.totalPago > 0 ? (totalPaid / reservation.totalPago * 100) : 0.0,
+        'pagosRealizados': payments.length,
+      };
+    } catch (e) {
+      debugPrint('❌ Error obteniendo balance de reserva: $e');
+      return {
+        'totalReserva': 0.0,
+        'totalPagado': 0.0,
+        'montoRestante': 0.0,
+        'porcentajePagado': 0.0,
+        'pagosRealizados': 0,
+      };
+    }
+  }
+
+  // ===== PAQUETES TURÍSTICOS =====
+
+  Future<List<TourPackage>> getPackages() async {
+    try {
+      final packagesData = await _apiService.getPackages(_authToken);
+      return packagesData.map((data) => TourPackage.fromMap(data)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo paquetes: $e');
+      return [];
+    }
+  }
+
+  Future<TourPackage> savePackage(TourPackage package) async {
+    try {
+      final packageData = package.toMap();
+      final responseData = package.id == null
+          ? await _apiService.createPackage(packageData, _authToken)
+          : await _apiService.updatePackage(package.id!, packageData, _authToken);
+      return TourPackage.fromMap(responseData);
+    } catch (e) {
+      debugPrint('❌ Error guardando paquete: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> deletePackage(int id) async {
+    try {
+      await _apiService.deletePackage(id, _authToken);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error eliminando paquete: $e');
+      return false;
+    }
+  }
+
+  // ===== INDICADORES DE DESEMPEÑO =====
 
   Future<List<Map<String, dynamic>>> getEmployeeClients(int employeeId) async {
     try {
       final clients = await getClients(forEmployeeId: employeeId);
-      if (clients.isEmpty) {
-        final mock = await _generateMockClients(employeeId);
-        debugPrint('🧾 Clientes mock generados para empleado $employeeId: ${mock.length}');
-        return mock;
-      }
-
+      
       return clients
           .map((client) => {
                 'id_cliente': client.id ?? 0,
                 'nombre': client.nombreCompleto,
                 'nacionalidad': client.pais,
-                'pasaporte': 'P-${client.idEmpleado}-${client.id ?? 0}',
+                'pasaporte': client.telefono,
                 'fecha_registro': client.fechaRegistro.toIso8601String(),
                 'preferencias_viaje': client.interes,
                 'id_empleado': client.idEmpleado,
-                'satisfaccion': 4,
-                'estado_civil': 'N/D',
+                'satisfaccion': client.satisfaccion ?? 3,
+                'estado_civil': client.estadoCivil ?? 'N/D',
               })
           .toList();
     } catch (e) {

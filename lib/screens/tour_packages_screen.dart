@@ -1,139 +1,237 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
+import 'package:aquatour/models/tour_package.dart';
+import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/screens/package_edit_screen.dart';
 
-class TourPackagesScreen extends StatelessWidget {
+class TourPackagesScreen extends StatefulWidget {
   const TourPackagesScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final metrics = [
-      const _PackageSummaryCard(
-        icon: Icons.card_travel_rounded,
-        label: 'Paquetes activos',
-        value: '0',
-        description: 'Configura paquetes base para reutilizarlos rápidamente.',
-      ),
-      const _PackageSummaryCard(
-        icon: Icons.settings_input_component_rounded,
-        label: 'Componentes promedio',
-        value: '0',
-        description: 'Alojamiento, tours y transportes combinados por paquete.',
-      ),
-      const _PackageSummaryCard(
-        icon: Icons.attach_money_rounded,
-        label: 'Margen estimado',
-        value: '0%',
-        description: 'Optimiza el margen con tarifas dinámicas y descuentos.',
-      ),
-    ];
+  State<TourPackagesScreen> createState() => _TourPackagesScreenState();
+}
 
+class _TourPackagesScreenState extends State<TourPackagesScreen> {
+  final StorageService _storageService = StorageService();
+  List<TourPackage> _packages = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPackages();
+  }
+
+  Future<void> _loadPackages() async {
+    setState(() => _isLoading = true);
+    try {
+      final packages = await _storageService.getPackages();
+      if (mounted) {
+        setState(() {
+          _packages = packages;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error cargando paquetes: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _openPackageForm({TourPackage? package}) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PackageEditScreen(package: package),
+      ),
+    );
+    if (result == true) {
+      _loadPackages();
+    }
+  }
+
+  Future<void> _deletePackage(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmar eliminación', style: GoogleFonts.montserrat()),
+        content: Text('¿Estás seguro de eliminar este paquete?', style: GoogleFonts.montserrat()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: GoogleFonts.montserrat()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text('Eliminar', style: GoogleFonts.montserrat()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final success = await _storageService.deletePackage(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'Paquete eliminado' : 'Error eliminando paquete'),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+        if (success) _loadPackages();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return ModuleScaffold(
       title: 'Paquetes turísticos',
-      subtitle: 'Diseña propuestas completas y personalizadas para tus clientes.',
-      icon: Icons.work_outline_rounded,
+      subtitle: 'Diseña propuestas completas y personalizadas para tus clientes',
+      icon: Icons.card_travel_rounded,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Función en desarrollo: pronto podrás crear paquetes.'),
-              backgroundColor: const Color(0xFF3D1F6E),
-            ),
-          );
-        },
+        onPressed: () => _openPackageForm(),
         backgroundColor: const Color(0xFFf7941e),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nuevo paquete'),
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        label: Text('Nuevo paquete', style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.w600)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 1180;
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 16,
-                  children: metrics
-                      .map((card) => SizedBox(
-                            width: isWide ? (constraints.maxWidth - 32) / 3 : double.infinity,
-                            child: card,
-                          ))
-                      .toList(),
-                ),
-                const SizedBox(height: 24),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 18,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _packages.isEmpty
+              ? _buildEmptyState()
+              : _buildPackagesList(),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.card_travel_rounded, size: 80, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text(
+            'No hay paquetes turísticos',
+            style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Crea tu primer paquete usando el botón naranja',
+            style: GoogleFonts.montserrat(fontSize: 14, color: Colors.grey[500]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPackagesList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _packages.length,
+      itemBuilder: (context, index) {
+        final package = _packages[index];
+        return _PackageCard(
+          package: package,
+          onTap: () => _openPackageForm(package: package),
+          onDelete: () => _deletePackage(package.id!),
+        );
+      },
+    );
+  }
+}
+
+class _PackageCard extends StatefulWidget {
+  const _PackageCard({
+    required this.package,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final TourPackage package;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  State<_PackageCard> createState() => _PackageCardState();
+}
+
+class _PackageCardState extends State<_PackageCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: _isHovered ? const Color(0xFF3D1F6E).withOpacity(0.15) : Colors.black.withOpacity(0.05),
+              blurRadius: _isHovered ? 12 : 4,
+              offset: Offset(0, _isHovered ? 4 : 2),
+            ),
+          ],
+        ),
+        child: Card(
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3D1F6E).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.card_travel, color: Color(0xFF3D1F6E), size: 24),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 26, 28, 30),
+                  const SizedBox(width: 16),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Construye experiencias únicas',
-                          style: GoogleFonts.montserrat(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF3D1F6E),
-                          ),
+                          widget.package.nombre,
+                          style: GoogleFonts.montserrat(fontWeight: FontWeight.w600, fontSize: 15),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 4),
                         Text(
-                          'Muy pronto podrás combinar destinos, alojamientos, actividades y extras en itinerarios completos, '
-                          'establecer reglas de precio y compartir cotizaciones al instante.',
-                          style: GoogleFonts.montserrat(fontSize: 14, height: 1.55, color: Colors.black87),
-                        ),
-                        const SizedBox(height: 22),
-                        Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF3D1F6E).withOpacity(0.08),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.card_travel_rounded, color: Color(0xFF3D1F6E), size: 38),
-                              ),
-                              const SizedBox(height: 18),
-                              Text(
-                                'Todavía no tienes paquetes creados.',
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF1F1F1F),
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Configura tu primer paquete para reutilizarlo en futuras propuestas.',
-                                style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[700], height: 1.5),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
+                          '${widget.package.duracionDias} días • \$${widget.package.precioBase.toStringAsFixed(2)} • ${widget.package.destinosIds.length} destino(s)',
+                          style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600]),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 20, color: Color(0xFF3D1F6E)),
+                    onPressed: widget.onTap,
+                    tooltip: 'Editar',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                    onPressed: widget.onDelete,
+                    tooltip: 'Eliminar',
+                  ),
+                ],
+              ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }

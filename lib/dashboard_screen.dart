@@ -12,6 +12,7 @@ import 'services/storage_service.dart';
 import 'widgets/dashboard_option_card.dart';
 import 'screens/client_list_screen.dart';
 import 'screens/destinations_screen.dart';
+import 'screens/payments_screen.dart';
 import 'screens/tour_packages_screen.dart';
 
 class DashboardModule {
@@ -113,6 +114,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         description: 'Gestiona reservas y estado de viajes confirmados.',
         icon: Icons.event_available_rounded,
         builder: (context) => const ReservationsScreen(),
+      ),
+      DashboardModule(
+        id: 'payments',
+        title: 'Pagos',
+        description: 'Registra y controla los pagos de tus clientes.',
+        icon: Icons.payment_rounded,
+        builder: (context) => const PaymentsScreen(),
       ),
       DashboardModule(
         id: 'companies',

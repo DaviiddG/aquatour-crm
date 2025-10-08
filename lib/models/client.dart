@@ -14,6 +14,8 @@ class Client extends Equatable {
     this.observaciones,
     required this.fechaRegistro,
     required this.idEmpleado,
+    this.satisfaccion,
+    this.estadoCivil,
   });
 
   final int? id;
@@ -28,6 +30,8 @@ class Client extends Equatable {
   final String? observaciones;
   final DateTime fechaRegistro;
   final int idEmpleado;
+  final int? satisfaccion;
+  final String? estadoCivil;
 
   Client copyWith({
     int? id,
@@ -42,6 +46,8 @@ class Client extends Equatable {
     String? observaciones,
     DateTime? fechaRegistro,
     int? idEmpleado,
+    int? satisfaccion,
+    String? estadoCivil,
   }) {
     return Client(
       id: id ?? this.id,
@@ -56,6 +62,8 @@ class Client extends Equatable {
       observaciones: observaciones ?? this.observaciones,
       fechaRegistro: fechaRegistro ?? this.fechaRegistro,
       idEmpleado: idEmpleado ?? this.idEmpleado,
+      satisfaccion: satisfaccion ?? this.satisfaccion,
+      estadoCivil: estadoCivil ?? this.estadoCivil,
     );
   }
 
@@ -66,13 +74,15 @@ class Client extends Equatable {
       email: map['email']?.toString() ?? '',
       telefono: map['telefono']?.toString() ?? '',
       ciudad: map['ciudad']?.toString() ?? '',
-      pais: map['pais']?.toString() ?? '',
+      pais: map['pais']?.toString() ?? map['nacionalidad']?.toString() ?? '',
       fechaNacimiento: _parseDate(map['fechaNacimiento'] ?? map['fecha_nacimiento']),
       fuente: map['fuente']?.toString() ?? 'Referencia',
-      interes: map['interes']?.toString() ?? 'Cotización',
+      interes: map['interes']?.toString() ?? map['preferencias_viaje']?.toString() ?? 'Cotización',
       observaciones: map['observaciones']?.toString(),
       fechaRegistro: _parseDate(map['fechaRegistro'] ?? map['fecha_registro']) ?? DateTime.now(),
-      idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado']) ?? 0,
+      idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado'] ?? map['id_usuario']) ?? 0,
+      satisfaccion: _parseInt(map['satisfaccion']),
+      estadoCivil: map['estadoCivil']?.toString() ?? map['estado_civil']?.toString(),
     );
   }
 
@@ -119,5 +129,7 @@ class Client extends Equatable {
         observaciones,
         fechaRegistro,
         idEmpleado,
+        satisfaccion,
+        estadoCivil,
       ];
 }

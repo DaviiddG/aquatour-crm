@@ -1,194 +1,264 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
+import 'package:aquatour/models/reservation.dart';
+import 'package:aquatour/models/user.dart';
+import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/screens/reservation_edit_screen.dart';
 
-class ReservationsScreen extends StatelessWidget {
+class ReservationsScreen extends StatefulWidget {
   const ReservationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return ModuleScaffold(
-      title: 'Reservas activas',
-      subtitle: 'Coordina viajes confirmados y tareas pendientes con cada proveedor',
-      icon: Icons.event_available_rounded,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Funcionalidad en desarrollo')),
-        ),
-        backgroundColor: const Color(0xFFf7941e),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nueva reserva'),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ReservationsHero(),
-          const SizedBox(height: 24),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isCompact = constraints.maxWidth < 780;
-                return GridView.count(
-                  crossAxisCount: isCompact ? 1 : 2,
-                  mainAxisSpacing: 18,
-                  crossAxisSpacing: 18,
-                  childAspectRatio: isCompact ? 16 / 10 : 20 / 10,
-                  children: const [
-                    _ReservationFeatureCard(
-                      icon: Icons.flight_takeoff_rounded,
-                      title: 'Calendario inteligente',
-                      description:
-                          'Sincroniza todos los viajes confirmados con recordatorios automáticos para check-in, documentación y pagos pendientes.',
-                    ),
-                    _ReservationFeatureCard(
-                      icon: Icons.task_alt_rounded,
-                      title: 'Checklist operativo',
-                      description:
-                          'Asigna tareas por reserva (vuelos, alojamiento, traslados) y monitoréalas en tiempo real para asegurar la experiencia del cliente.',
-                    ),
-                    _ReservationFeatureCard(
-                      icon: Icons.receipt_long_rounded,
-                      title: 'Control financiero',
-                      description:
-                          'Registra abonos, comisiones y saldos con proveedores. El módulo mostrará alertas cuando falte conciliar un pago.',
-                    ),
-                    _ReservationFeatureCard(
-                      icon: Icons.support_agent_rounded,
-                      title: 'Atención post-venta',
-                      description:
-                          'Centraliza incidencias, solicitudes especiales y encuestas de satisfacción para cada reserva gestionada.',
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  State<ReservationsScreen> createState() => _ReservationsScreenState();
 }
 
-class _ReservationsHero extends StatelessWidget {
+class _ReservationsScreenState extends State<ReservationsScreen> {
+  final StorageService _storageService = StorageService();
+  List<Reservation> _reservations = [];
+  User? _currentUser;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReservations();
+  }
+
+  Future<void> _loadReservations() async {
+    setState(() => _isLoading = true);
+    try {
+      final currentUser = await _storageService.getCurrentUser();
+      if (currentUser != null) {
+        _currentUser = currentUser;
+        final reservations = currentUser.rol == UserRole.empleado
+            ? await _storageService.getReservationsByEmployee(currentUser.idUsuario!)
+            : await _storageService.getAllReservations();
+        if (mounted) {
+          setState(() {
+            _reservations = reservations;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error cargando reservas: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _openReservationForm({Reservation? reservation}) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ReservationEditScreen(reservation: reservation),
+      ),
+    );
+    if (result == true) {
+      _loadReservations();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFF3D1F6E),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF3D1F6E).withOpacity(0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 18),
+    // Solo empleados pueden crear reservas directamente
+    final canCreateReservation = _currentUser?.rol == UserRole.empleado;
+    
+    return ModuleScaffold(
+      title: _currentUser?.rol == UserRole.empleado ? 'Mis Reservas' : 'Reservas del Equipo',
+      subtitle: _currentUser?.rol == UserRole.empleado 
+          ? 'Gestiona tus reservas y tareas pendientes'
+          : 'Supervisa todas las reservas del equipo',
+      icon: Icons.event_available_rounded,
+      floatingActionButton: canCreateReservation
+          ? FloatingActionButton.extended(
+              onPressed: () => _openReservationForm(),
+              backgroundColor: const Color(0xFFf7941e),
+              icon: const Icon(Icons.add_rounded, color: Colors.white),
+              label: Text('Nueva reserva', style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.w600)),
+            )
+          : null,
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _reservations.isEmpty
+              ? _buildEmptyState()
+              : _buildReservationsList(),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.event_busy_rounded, size: 80, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text(
+            'No hay reservas registradas',
+            style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Crea tu primera reserva usando el botón naranja',
+            style: GoogleFonts.montserrat(fontSize: 14, color: Colors.grey[500]),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 54,
-              width: 54,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 30),
-            ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Todas las reservas bajo control',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Monitorea la evolución de cada itinerario, centraliza documentos y coordina con proveedores sin salir del CRM.',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 13,
-                      color: Colors.white.withOpacity(0.9),
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    );
+  }
+
+  Widget _buildReservationsList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _reservations.length,
+      itemBuilder: (context, index) {
+        final reservation = _reservations[index];
+        return _ReservationCard(
+          reservation: reservation,
+          onTap: () => _openReservationForm(reservation: reservation),
+        );
+      },
     );
   }
 }
 
-class _ReservationFeatureCard extends StatelessWidget {
-  const _ReservationFeatureCard({
-    required this.icon,
-    required this.title,
-    required this.description,
+class _ReservationCard extends StatefulWidget {
+  const _ReservationCard({
+    required this.reservation,
+    required this.onTap,
   });
 
-  final IconData icon;
-  final String title;
-  final String description;
+  final Reservation reservation;
+  final VoidCallback onTap;
+
+  @override
+  State<_ReservationCard> createState() => _ReservationCardState();
+}
+
+class _ReservationCardState extends State<_ReservationCard> {
+  bool _isHovered = false;
+
+  Color _getStatusColor() {
+    switch (widget.reservation.estado) {
+      case ReservationStatus.confirmada:
+        return Colors.green;
+      case ReservationStatus.cancelada:
+        return Colors.red;
+      default:
+        return Colors.orange;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.14)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 48,
-              width: 48,
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        transform: Matrix4.translationValues(0, _isHovered ? -2 : 0, 0),
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: DecoratedBox(
               decoration: BoxDecoration(
-                color: const Color(0xFF3D1F6E).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _isHovered ? const Color(0xFF3D1F6E) : Colors.grey[200]!,
+                  width: _isHovered ? 2 : 1,
+                ),
+                boxShadow: _isHovered
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF3D1F6E).withOpacity(0.15),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : [],
               ),
-              child: Icon(icon, color: const Color(0xFF3D1F6E)),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: GoogleFonts.montserrat(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF1F1F1F),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3D1F6E).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.flight_takeoff_rounded, color: Color(0xFF3D1F6E), size: 24),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Reserva #${widget.reservation.id}',
+                                style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _getStatusColor().withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  widget.reservation.estado.displayName,
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: _getStatusColor(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${dateFormat.format(widget.reservation.fechaInicioViaje)} - ${dateFormat.format(widget.reservation.fechaFinViaje)}',
+                            style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[600]),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.people_outline, size: 14, color: Colors.grey[600]),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${widget.reservation.cantidadPersonas} personas',
+                                style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600]),
+                              ),
+                              const SizedBox(width: 16),
+                              Icon(Icons.attach_money, size: 14, color: Colors.grey[600]),
+                              Text(
+                                '\$${widget.reservation.totalPago.toStringAsFixed(2)}',
+                                style: GoogleFonts.montserrat(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.grey[400]),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              description,
-              style: GoogleFonts.montserrat(
-                fontSize: 13,
-                height: 1.5,
-                color: const Color(0xFF5C5C5C),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

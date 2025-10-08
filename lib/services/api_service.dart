@@ -328,6 +328,131 @@ class ApiService {
     await _delete('/clients/$id', token: token);
   }
 
+  // ===== DESTINOS =====
+
+  Future<List<dynamic>> getDestinations(String? token) async {
+    final response = await _get('/destinations', token: token);
+    if (response is Map<String, dynamic> && response['destinations'] is List<dynamic>) {
+      return response['destinations'] as List<dynamic>;
+    }
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<Map<String, dynamic>> getDestination(int id, String? token) async {
+    final response = await _get('/destinations/$id', token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> createDestination(Map<String, dynamic> destinationData, String? token) async {
+    final response = await _post('/destinations', destinationData, token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> updateDestination(int id, Map<String, dynamic> destinationData, String? token) async {
+    final response = await _put('/destinations/$id', destinationData, token: token);
+    return response;
+  }
+
+  Future<void> deleteDestination(int id, String? token) async {
+    await _delete('/destinations/$id', token: token);
+  }
+
+  // ===== RESERVAS =====
+
+  Future<List<dynamic>> getReservations(String? token) async {
+    final response = await _get('/reservations', token: token);
+    if (response is Map<String, dynamic> && response['reservations'] is List<dynamic>) {
+      return response['reservations'] as List<dynamic>;
+    }
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<List<dynamic>> getReservationsByEmployee(int idEmpleado, String? token) async {
+    final response = await _get('/reservations/employee/$idEmpleado', token: token);
+    if (response is Map<String, dynamic> && response['reservations'] is List<dynamic>) {
+      return response['reservations'] as List<dynamic>;
+    }
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<Map<String, dynamic>> createReservation(Map<String, dynamic> reservationData, String? token) async {
+    final response = await _post('/reservations', reservationData, token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> updateReservation(int id, Map<String, dynamic> reservationData, String? token) async {
+    final response = await _put('/reservations/$id', reservationData, token: token);
+    return response;
+  }
+
+  Future<void> deleteReservation(int id, String? token) async {
+    await _delete('/reservations/$id', token: token);
+  }
+
+  // ===== PAGOS =====
+
+  Future<List<dynamic>> getPayments(String? token) async {
+    final response = await _get('/payments', token: token);
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<List<dynamic>> getPaymentsByEmployee(int idEmpleado, String? token) async {
+    final response = await _get('/payments/employee/$idEmpleado', token: token);
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<List<dynamic>> getPaymentsByReservation(int idReserva, String? token) async {
+    final response = await _get('/payments/reservation/$idReserva', token: token);
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<Map<String, dynamic>> createPayment(Map<String, dynamic> paymentData, String? token) async {
+    final response = await _post('/payments', paymentData, token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> updatePayment(int id, Map<String, dynamic> paymentData, String? token) async {
+    final response = await _put('/payments/$id', paymentData, token: token);
+    return response;
+  }
+
+  Future<void> deletePayment(int id, String? token) async {
+    await _delete('/payments/$id', token: token);
+  }
+
+  // ===== PAQUETES TURÍSTICOS =====
+
+  Future<List<dynamic>> getPackages(String? token) async {
+    final response = await _get('/packages', token: token);
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
+  Future<Map<String, dynamic>> getPackageById(int id, String? token) async {
+    final response = await _get('/packages/$id', token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> createPackage(Map<String, dynamic> packageData, String? token) async {
+    final response = await _post('/packages', packageData, token: token);
+    return response;
+  }
+
+  Future<Map<String, dynamic>> updatePackage(int id, Map<String, dynamic> packageData, String? token) async {
+    final response = await _put('/packages/$id', packageData, token: token);
+    return response;
+  }
+
+  Future<void> deletePackage(int id, String? token) async {
+    await _delete('/packages/$id', token: token);
+  }
+
   // ===== ESTADÍSTICAS Y DASHBOARD =====
 
   // Obtener estadísticas del dashboard

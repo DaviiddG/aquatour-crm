@@ -777,7 +777,7 @@ class _UserBoard extends StatelessWidget {
   }
 }
 
-class _UserCard extends StatelessWidget {
+class _UserCard extends StatefulWidget {
   const _UserCard({
     required this.user,
     required this.roleColor,
@@ -795,38 +795,62 @@ class _UserCard extends StatelessWidget {
   final VoidCallback onDelete;
 
   @override
+  State<_UserCard> createState() => _UserCardState();
+}
+
+class _UserCardState extends State<_UserCard> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    final hasEditAction = canEdit && onEdit != null;
-    final hasDeleteAction = canDelete && onDelete != null;
+    final hasEditAction = widget.canEdit && widget.onEdit != null;
+    final hasDeleteAction = widget.canDelete && widget.onDelete != null;
     final actionButtons = <Widget>[
       if (hasEditAction)
         IconButton(
           tooltip: 'Editar usuario',
           icon: const Icon(Icons.edit_rounded, color: Color(0xFF2C53A4)),
-          onPressed: onEdit,
+          onPressed: widget.onEdit,
         ),
       if (hasDeleteAction)
         IconButton(
           tooltip: 'Eliminar usuario',
           icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFB3261E)),
-          onPressed: onDelete,
+          onPressed: widget.onDelete,
         ),
     ];
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 10),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        transform: Matrix4.translationValues(0, _isHovered ? -4 : 0, 0),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: _isHovered
+                ? [
+                    BoxShadow(
+                      color: widget.roleColor.withOpacity(0.2),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 16,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+            border: Border.all(
+              color: _isHovered ? widget.roleColor : Colors.grey.withOpacity(0.15),
+              width: _isHovered ? 2 : 1,
+            ),
           ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.15)),
-      ),
-      child: Padding(
+          child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -836,13 +860,13 @@ class _UserCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 26,
-                  backgroundColor: roleColor.withOpacity(0.12),
+                  backgroundColor: widget.roleColor.withOpacity(0.12),
                   child: Text(
-                    user.nombre.isNotEmpty ? user.nombre[0].toUpperCase() : '?',
+                    widget.user.nombre.isNotEmpty ? widget.user.nombre[0].toUpperCase() : '?',
                     style: GoogleFonts.montserrat(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
-                      color: roleColor,
+                      color: widget.roleColor,
                     ),
                   ),
                 ),
@@ -852,7 +876,7 @@ class _UserCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        user.nombreCompleto,
+                        widget.user.nombreCompleto,
                         style: GoogleFonts.montserrat(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -861,13 +885,13 @@ class _UserCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        user.email,
+                        widget.user.email,
                         style: GoogleFonts.montserrat(fontSize: 12, color: const Color(0xFF6F6F6F)),
                       ),
                     ],
                   ),
                 ),
-                _UserRoleBadge(role: user.rol, color: roleColor),
+                _UserRoleBadge(role: widget.user.rol, color: widget.roleColor),
               ],
             ),
             const SizedBox(height: 16),
@@ -875,12 +899,12 @@ class _UserCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 6,
               children: [
-                _InfoChip(icon: Icons.perm_identity_rounded, label: user.numDocumento),
-                _InfoChip(icon: Icons.phone_rounded, label: user.telefono),
-                _InfoChip(icon: Icons.location_city_rounded, label: user.ciudadResidencia),
-                _InfoChip(icon: Icons.flag_rounded, label: user.paisResidencia),
-                _InfoChip(icon: Icons.cake_rounded, label: '${user.edad} años'),
-                _InfoChip(icon: Icons.badge_rounded, label: user.tipoDocumento),
+                _InfoChip(icon: Icons.perm_identity_rounded, label: widget.user.numDocumento),
+                _InfoChip(icon: Icons.phone_rounded, label: widget.user.telefono),
+                _InfoChip(icon: Icons.location_city_rounded, label: widget.user.ciudadResidencia),
+                _InfoChip(icon: Icons.flag_rounded, label: widget.user.paisResidencia),
+                _InfoChip(icon: Icons.cake_rounded, label: '${widget.user.edad} años'),
+                _InfoChip(icon: Icons.badge_rounded, label: widget.user.tipoDocumento),
               ],
             ),
             const SizedBox(height: 16),
@@ -888,10 +912,10 @@ class _UserCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  user.activo ? 'Activo' : 'Inactivo',
+                  widget.user.activo ? 'Activo' : 'Inactivo',
                   style: GoogleFonts.montserrat(
                     fontWeight: FontWeight.w600,
-                    color: user.activo ? const Color(0xFF1B8D5E) : const Color(0xFFB3261E),
+                    color: widget.user.activo ? const Color(0xFF1B8D5E) : const Color(0xFFB3261E),
                   ),
                 ),
                 actionButtons.isEmpty
@@ -900,6 +924,8 @@ class _UserCard extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
         ),
       ),
     );

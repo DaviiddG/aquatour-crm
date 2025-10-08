@@ -241,6 +241,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     final sales = _metrics['sales'] ?? {};
     final reservations = _metrics['reservations'] ?? {};
     final quotes = _metrics['quotes'] ?? {};
+    final clients = _metrics['clients'] ?? {};
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -290,7 +291,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Resumen mensual de ventas, reservas y cotizaciones',
+                        'Resumen mensual de ventas, reservas, cotizaciones y clientes',
                         style: GoogleFonts.montserrat(
                           fontSize: 12,
                           color: Colors.white.withOpacity(0.85),
@@ -318,6 +319,11 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                   'Cotizaciones',
                   '${quotes['accepted'] ?? 0}/${quotes['total'] ?? 0}',
                   Icons.request_quote_rounded,
+                ),
+                _buildSummaryItem(
+                  'Clientes',
+                  '${clients['total'] ?? _clients.length}',
+                  Icons.people_rounded,
                 ),
               ],
             ),
@@ -560,9 +566,68 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
 
   Widget _buildReservationsChart() {
     final reservations = _metrics['reservations'] ?? {};
-    final confirmed = (reservations['confirmed'] ?? 0).toDouble();
-    final total = (reservations['total'] ?? 0).toDouble();
-    final pending = total - confirmed;
+    final pending = (reservations['pending'] ?? 0).toDouble();
+    final inProcess = (reservations['inProcess'] ?? 0).toDouble();
+    final paid = (reservations['paid'] ?? 0).toDouble();
+    final cancelled = (reservations['cancelled'] ?? 0).toDouble();
+
+    final sections = <PieChartSectionData>[];
+    
+    if (paid > 0) {
+      sections.add(PieChartSectionData(
+        value: paid,
+        title: '${paid.toInt()}\nPagadas',
+        color: Colors.green,
+        radius: 60,
+        titleStyle: GoogleFonts.montserrat(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
+    
+    if (inProcess > 0) {
+      sections.add(PieChartSectionData(
+        value: inProcess,
+        title: '${inProcess.toInt()}\nEn Proceso',
+        color: Colors.blue,
+        radius: 60,
+        titleStyle: GoogleFonts.montserrat(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
+    
+    if (pending > 0) {
+      sections.add(PieChartSectionData(
+        value: pending,
+        title: '${pending.toInt()}\nPendientes',
+        color: Colors.orange,
+        radius: 60,
+        titleStyle: GoogleFonts.montserrat(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
+    
+    if (cancelled > 0) {
+      sections.add(PieChartSectionData(
+        value: cancelled,
+        title: '${cancelled.toInt()}\nCanceladas',
+        color: Colors.red,
+        radius: 60,
+        titleStyle: GoogleFonts.montserrat(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
 
     return Card(
       elevation: 3,
@@ -585,43 +650,31 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
-              child: PieChart(
-                PieChartData(
-                  sections: [
-                    PieChartSectionData(
-                      value: confirmed,
-                      title: '${confirmed.toInt()}\nConfirmadas',
-                      color: Colors.green,
-                      radius: 60,
-                      titleStyle: GoogleFonts.montserrat(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+              child: sections.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Sin reservas',
+                        style: GoogleFonts.montserrat(color: Colors.grey),
+                      ),
+                    )
+                  : PieChart(
+                      PieChartData(
+                        sections: sections,
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 40,
                       ),
                     ),
-                    PieChartSectionData(
-                      value: pending,
-                      title: '${pending.toInt()}\nPendientes',
-                      color: Colors.orange,
-                      radius: 60,
-                      titleStyle: GoogleFonts.montserrat(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                  sectionsSpace: 2,
-                  centerSpaceRadius: 40,
-                ),
-              ),
             ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
               children: [
-                _buildLegendItem('Confirmadas', Colors.green),
+                _buildLegendItem('Pagadas', Colors.green),
+                _buildLegendItem('En Proceso', Colors.blue),
                 _buildLegendItem('Pendientes', Colors.orange),
+                _buildLegendItem('Canceladas', Colors.red),
               ],
             ),
           ],
@@ -725,10 +778,22 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     );
   }
 
+  String _getCurrentPeriod() {
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final endOfMonth = DateTime(now.year, now.month + 1, 0);
+    
+    final monthNames = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    
+    return '${startOfMonth.day} de ${monthNames[now.month - 1]} - ${endOfMonth.day} de ${monthNames[now.month - 1]} ${now.year}';
+  }
+
   Widget _buildDetailedMetrics() {
     final sales = _metrics['sales'] ?? {};
     final reservations = _metrics['reservations'] ?? {};
-    final quotes = _metrics['quotes'] ?? {};
 
     return Card(
       elevation: 3,
@@ -755,18 +820,18 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               Icons.attach_money,
             ),
             _buildMetricRow(
+              'Reservas Totales',
+              '${reservations['total'] ?? 0}',
+              Icons.event_available_rounded,
+            ),
+            _buildMetricRow(
               'Venta Promedio',
               '\$${(sales['averageSale'] ?? 0).toStringAsFixed(0)}',
               Icons.trending_up,
             ),
-            _buildMetricRow(
-              'Tasa de Conversión',
-              '${((quotes['conversionRate'] ?? 0) * 100).toStringAsFixed(1)}%',
-              Icons.percent,
-            ),
             const Divider(),
             Text(
-              'Período: ${_metrics['period'] ?? 'N/A'}',
+              'Período: ${_getCurrentPeriod()}',
               style: GoogleFonts.montserrat(
                 fontSize: 12,
                 color: Colors.grey,
