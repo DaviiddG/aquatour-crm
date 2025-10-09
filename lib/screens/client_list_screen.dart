@@ -404,9 +404,15 @@ class _ClientListScreenState extends State<ClientListScreen> {
   }
 
   Widget _buildClientItem(Map<String, dynamic> client) {
+    // Los empleados pueden editar sus propios clientes
+    // El cliente tiene id_usuario que corresponde al empleado que lo creó
+    final clientIdUsuario = client['idUsuario'] ?? client['id_usuario'];
+    final canModifyThisClient = _canModify || 
+        (_currentUser?.rol == UserRole.empleado && clientIdUsuario == _currentUser?.idUsuario);
+    
     return _ClientCard(
       client: client,
-      canModify: _canModify,
+      canModify: canModifyThisClient,
       onEdit: () => _openClientForm(clientData: client),
       onDelete: () => _deleteClient(client['id'] ?? 0),
     );
