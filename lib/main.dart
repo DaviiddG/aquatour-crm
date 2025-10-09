@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:aquatour/login_screen.dart';
@@ -59,6 +60,16 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Aquatour CRM',
+      // Configuración de localización en español
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'ES'), // Español
+      ],
+      locale: const Locale('es', 'ES'),
       theme: ThemeData(
         primaryColor: colorPrimario,
         hintColor: colorAcento,

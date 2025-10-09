@@ -35,9 +35,15 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
       if (currentUser != null) {
         _currentUser = currentUser;
         _canModify = PermissionsHelper.canModify(currentUser.rol);
+        
+        debugPrint('🔍 Usuario actual: id=${currentUser.idUsuario}, rol=${currentUser.rol.name}');
+        
         final reservations = currentUser.rol == UserRole.empleado
             ? await _storageService.getReservationsByEmployee(currentUser.idUsuario!)
             : await _storageService.getAllReservations();
+        
+        debugPrint('📋 Reservas cargadas: ${reservations.length}');
+        
         if (mounted) {
           setState(() {
             _reservations = reservations;
@@ -114,7 +120,21 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
     );
   }
 
-  Future<void> _deleteReservation(int id) async {
+  Future<void> _deleteReservation(int id, int idEmpleado) async {
+    // Los empleados pueden eliminar las reservas que se les muestran
+    // (ya que el backend filtra por empleado)
+    final canDelete = _canModify || _currentUser?.rol == UserRole.empleado;
+    
+    if (!canDelete) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tienes permisos para eliminar esta reserva'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -135,15 +155,35 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
     );
 
     if (confirm == true) {
-      final success = await _storageService.deleteReservation(id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Reserva eliminada' : 'Error eliminando reserva'),
-            backgroundColor: success ? Colors.green : Colors.red,
-          ),
-        );
-        if (success) _loadReservations();
+      try {
+        await _storageService.deleteReservation(id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Reserva eliminada exitosamente', style: GoogleFonts.montserrat()),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadReservations();
+        }
+      } catch (e) {
+        if (mounted) {
+          // Extraer el mensaje de error del servidor
+          String errorMessage = 'Error eliminando reserva';
+          if (e.toString().contains('Exception:')) {
+            errorMessage = e.toString().replaceAll('Exception:', '').trim();
+          } else if (e.toString().contains(':')) {
+            errorMessage = e.toString().split(':').last.trim();
+          }
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage, style: GoogleFonts.montserrat()),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
       }
     }
   }
@@ -154,11 +194,20 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
       itemCount: _reservations.length,
       itemBuilder: (context, index) {
         final reservation = _reservations[index];
+        
+        // Los empleados pueden editar TODAS las reservas que se les muestran
+        // (ya que el backend filtra por empleado)
+        // Los admins pueden editar todas las reservas
+        final canModifyThisReservation = _canModify || _currentUser?.rol == UserRole.empleado;
+        
+        // Debug: Verificar permisos
+        debugPrint('🔍 Reserva #${reservation.id}: idEmpleado=${reservation.idEmpleado}, currentUserId=${_currentUser?.idUsuario}, rol=${_currentUser?.rol.name}, canModify=$canModifyThisReservation');
+        
         return _ReservationCard(
           reservation: reservation,
-          canModify: _canModify,
+          canModify: canModifyThisReservation,
           onTap: () => _openReservationForm(reservation: reservation),
-          onDelete: () => _deleteReservation(reservation.id!),
+          onDelete: () => _deleteReservation(reservation.id!, reservation.idEmpleado),
         );
       },
     );
@@ -210,7 +259,7 @@ class _ReservationCardState extends State<_ReservationCard> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: widget.canModify ? widget.onTap : null,
+            onTap: widget.onTap, // Permitir clic siempre para debugging
             borderRadius: BorderRadius.circular(12),
             child: DecoratedBox(
               decoration: BoxDecoration(

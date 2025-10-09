@@ -136,7 +136,7 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Construye tu catálogo',
+                          _canCreate ? 'Construye tu catálogo' : 'Explora nuestro catálogo',
                           style: GoogleFonts.montserrat(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -145,8 +145,11 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'Administra información clave como temporadas, actividades, partners y costos locales. '
-                          'Muy pronto podrás importar catálogos masivos y sincronizarlos con tus propuestas.',
+                          _canCreate
+                              ? 'Administra información clave como temporadas, actividades, partners y costos locales. '
+                                'Muy pronto podrás importar catálogos masivos y sincronizarlos con tus propuestas.'
+                              : 'Consulta los destinos disponibles para crear cotizaciones y reservas personalizadas para tus clientes. '
+                                'Encuentra información sobre clima, temporadas y actividades de cada destino.',
                           style: GoogleFonts.montserrat(fontSize: 14, height: 1.55, color: Colors.black87),
                         ),
                         const SizedBox(height: 22),
@@ -191,7 +194,10 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
                                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                                     itemBuilder: (context, index) {
                                       final destination = _destinations[index];
-                                      return _DestinationCard(destination: destination);
+                                      return _DestinationCard(
+                                        destination: destination,
+                                        canModify: _canCreate, // Solo admins pueden modificar
+                                      );
                                     },
                                   ),
                       ],
@@ -208,9 +214,13 @@ class _DestinationsScreenState extends State<DestinationsScreen> {
 }
 
 class _DestinationCard extends StatefulWidget {
-  const _DestinationCard({required this.destination});
+  const _DestinationCard({
+    required this.destination,
+    required this.canModify,
+  });
 
   final Destination destination;
+  final bool canModify;
 
   @override
   State<_DestinationCard> createState() => _DestinationCardState();
@@ -302,7 +312,7 @@ class _DestinationCardState extends State<_DestinationCard> {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () async {
+              onTap: widget.canModify ? () async {
                 final result = await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => DestinationEditScreen(destination: widget.destination),
@@ -312,7 +322,7 @@ class _DestinationCardState extends State<_DestinationCard> {
                   final state = context.findAncestorStateOfType<_DestinationsScreenState>();
                   state?._loadDestinations();
                 }
-              },
+              } : null,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -366,15 +376,18 @@ class _DestinationCardState extends State<_DestinationCard> {
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(
-                Icons.delete_outline_rounded,
-                color: Colors.red,
-                size: 20,
-              ),
-              onPressed: () => _deleteDestination(context),
-              tooltip: 'Eliminar destino',
-            ),
+            if (widget.canModify)
+              IconButton(
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red,
+                  size: 20,
+                ),
+                onPressed: () => _deleteDestination(context),
+                tooltip: 'Eliminar destino',
+              )
+            else
+              const SizedBox(width: 48), // Espacio para mantener alineación
                   ],
                 ),
               ),

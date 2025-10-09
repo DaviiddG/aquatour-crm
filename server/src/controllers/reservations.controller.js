@@ -68,14 +68,16 @@ export const updateReservationController = async (req, res, next) => {
 export const deleteReservationController = async (req, res, next) => {
   try {
     const { idReserva } = req.params;
-    const deleted = await deleteReservation(idReserva);
-
-    if (!deleted) {
-      return res.status(404).json({ ok: false, error: 'Reserva no encontrada' });
-    }
-
+    await deleteReservation(idReserva);
     res.json({ ok: true, deleted: true });
   } catch (error) {
-    next(error);
+    console.error('Error eliminando reserva:', error.message);
+    
+    // Enviar el mensaje de error específico al frontend
+    const statusCode = error.status || 500;
+    res.status(statusCode).json({ 
+      ok: false,
+      error: error.message || 'Error eliminando reserva' 
+    });
   }
 };

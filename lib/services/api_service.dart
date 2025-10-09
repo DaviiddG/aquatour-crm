@@ -101,6 +101,8 @@ class ApiService {
       final message = decoded is Map<String, dynamic>
           ? decoded['error'] ?? decoded['message']
           : response.reasonPhrase;
+      debugPrint('❌ Error HTTP $status: $message');
+      debugPrint('❌ Respuesta completa: $decoded');
       throw Exception(message ?? 'Error $status en la solicitud');
     }
 

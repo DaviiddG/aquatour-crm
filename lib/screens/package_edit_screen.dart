@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../models/tour_package.dart';
 import '../models/destination.dart';
 import '../services/storage_service.dart';
+import '../utils/currency_input_formatter.dart';
 
 class PackageEditScreen extends StatefulWidget {
   final TourPackage? package;
@@ -38,7 +40,15 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
     
     _nombreController = TextEditingController(text: widget.package?.nombre ?? '');
     _descripcionController = TextEditingController(text: widget.package?.descripcion ?? '');
-    _precioController = TextEditingController(text: widget.package?.precioBase.toString() ?? '');
+    
+    // Formatear el precio inicial con puntos de miles
+    String initialPrecio = '';
+    if (widget.package?.precioBase != null) {
+      final formatter = NumberFormat('#,##0', 'es_CO');
+      initialPrecio = formatter.format(widget.package!.precioBase.toInt());
+    }
+    _precioController = TextEditingController(text: initialPrecio);
+    
     _duracionController = TextEditingController(text: widget.package?.duracionDias.toString() ?? '');
     _cupoController = TextEditingController(text: widget.package?.cupoMaximo.toString() ?? '');
     _serviciosController = TextEditingController(text: widget.package?.serviciosIncluidos ?? '');
@@ -49,6 +59,10 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
   Future<void> _loadDestinations() async {
     try {
       final destinations = await _storageService.getDestinations();
+      
+      debugPrint('🔍 Destinos seleccionados inicialmente: $_selectedDestinations');
+      debugPrint('📍 Destinos disponibles: ${destinations.map((d) => '${d.id}: ${d.ciudad}').toList()}');
+      
       if (mounted) {
         setState(() {
           _destinations = destinations;
@@ -82,11 +96,19 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
     setState(() => _isSaving = true);
 
     try {
+      // Parsear el precio formateado
+      final precio = CurrencyInputFormatter.parseFormattedValue(_precioController.text);
+      if (precio == null) {
+        throw Exception('Precio inválido');
+      }
+      
+      debugPrint('🔍 Guardando paquete con destinos: $_selectedDestinations');
+      
       final package = TourPackage(
         id: widget.package?.id,
         nombre: _nombreController.text.trim(),
         descripcion: _descripcionController.text.trim().isEmpty ? null : _descripcionController.text.trim(),
-        precioBase: double.parse(_precioController.text),
+        precioBase: precio,
         duracionDias: int.parse(_duracionController.text),
         cupoMaximo: int.parse(_cupoController.text),
         serviciosIncluidos: _serviciosController.text.trim().isEmpty ? null : _serviciosController.text.trim(),
@@ -202,9 +224,12 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
                                   setState(() {
                                     if (value == true) {
                                       _selectedDestinations.add(destination.id!);
+                                      debugPrint('✅ Destino agregado: ${destination.ciudad} (ID: ${destination.id})');
                                     } else {
                                       _selectedDestinations.remove(destination.id);
+                                      debugPrint('❌ Destino removido: ${destination.ciudad} (ID: ${destination.id})');
                                     }
+                                    debugPrint('📋 Destinos seleccionados ahora: $_selectedDestinations');
                                   });
                                 },
                                 activeColor: const Color(0xFF3D1F6E),
@@ -232,18 +257,23 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
                           Expanded(
                             child: TextFormField(
                               controller: _precioController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                CurrencyInputFormatter(),
+                              ],
                               decoration: InputDecoration(
                                 labelText: 'Precio base *',
                                 labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                                hintText: '0',
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                 prefixText: '\$ ',
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) return 'Obligatorio';
-                                if (double.tryParse(value) == null) return 'Número inválido';
+                                final parsedValue = CurrencyInputFormatter.parseFormattedValue(value);
+                                if (parsedValue == null) return 'Número inválido';
                                 return null;
                               },
                             ),

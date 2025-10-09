@@ -22,16 +22,26 @@ class TourPackage {
   factory TourPackage.fromMap(Map<String, dynamic> map) {
     // Parsear destinos si vienen como string separado por comas
     List<int> destinos = [];
-    if (map['destinos_ids'] != null) {
-      if (map['destinos_ids'] is String) {
-        destinos = (map['destinos_ids'] as String)
+    
+    // Intentar obtener destinos de diferentes campos posibles
+    final destinosField = map['destinos_ids'] ?? map['idDestino'] ?? map['id_destino'];
+    
+    if (destinosField != null) {
+      if (destinosField is String) {
+        destinos = (destinosField as String)
             .split(',')
             .where((s) => s.isNotEmpty)
             .map((s) => int.tryParse(s.trim()) ?? 0)
             .where((id) => id > 0)
             .toList();
-      } else if (map['destinos_ids'] is List) {
-        destinos = (map['destinos_ids'] as List).map((e) => int.tryParse(e.toString()) ?? 0).toList();
+      } else if (destinosField is List) {
+        destinos = (destinosField as List)
+            .map((e) => int.tryParse(e.toString()) ?? 0)
+            .where((id) => id > 0)
+            .toList();
+      } else if (destinosField is int) {
+        // Si viene un solo ID como número
+        destinos = [destinosField];
       }
     }
 

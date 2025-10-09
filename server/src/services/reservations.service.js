@@ -154,6 +154,32 @@ export const updateReservation = async (idReserva, payload) => {
 };
 
 export const deleteReservation = async (idReserva) => {
-  const [result] = await query(`DELETE FROM Reserva WHERE id_reserva = ?`, [idReserva]);
-  return result.affectedRows > 0;
+  try {
+    // Verificar si hay pagos asociados a esta reserva
+    const [pagos] = await query(
+      `SELECT COUNT(*) as count FROM Pago WHERE id_reserva = ?`,
+      [idReserva]
+    );
+    
+    if (pagos[0].count > 0) {
+      const error = new Error(`No se puede eliminar la reserva porque tiene ${pagos[0].count} pago(s) asociado(s). Elimina primero los pagos.`);
+      error.status = 409; // Conflict
+      throw error;
+    }
+    
+    // Si no hay dependencias, eliminar la reserva
+    const [result] = await query(`DELETE FROM Reserva WHERE id_reserva = ?`, [idReserva]);
+    
+    if (result.affectedRows === 0) {
+      const error = new Error('Reserva no encontrada');
+      error.status = 404;
+      throw error;
+    }
+    
+    console.log(`✅ Reserva ${idReserva} eliminada exitosamente`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error eliminando reserva ${idReserva}:`, error.message);
+    throw error;
+  }
 };

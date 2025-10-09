@@ -48,13 +48,15 @@ export const updatePackage = async (req, res) => {
 
 export const deletePackage = async (req, res) => {
   try {
-    const deleted = await packagesService.deletePackage(req.params.id);
-    if (!deleted) {
-      return res.status(404).json({ error: 'Paquete no encontrado' });
-    }
+    await packagesService.deletePackage(req.params.id);
     res.status(204).send();
   } catch (error) {
-    console.error('Error eliminando paquete:', error);
-    res.status(500).json({ error: 'Error eliminando paquete' });
+    console.error('Error eliminando paquete:', error.message);
+    
+    // Enviar el mensaje de error específico al frontend
+    const statusCode = error.status || 500;
+    res.status(statusCode).json({ 
+      error: error.message || 'Error eliminando paquete' 
+    });
   }
 };

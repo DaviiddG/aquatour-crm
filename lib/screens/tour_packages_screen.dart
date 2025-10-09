@@ -88,15 +88,35 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
     );
 
     if (confirm == true) {
-      final success = await _storageService.deletePackage(id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Paquete eliminado' : 'Error eliminando paquete'),
-            backgroundColor: success ? Colors.green : Colors.red,
-          ),
-        );
-        if (success) _loadPackages();
+      try {
+        await _storageService.deletePackage(id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Paquete eliminado exitosamente', style: GoogleFonts.montserrat()),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadPackages();
+        }
+      } catch (e) {
+        if (mounted) {
+          // Extraer el mensaje de error del servidor
+          String errorMessage = 'Error eliminando paquete';
+          if (e.toString().contains('Exception:')) {
+            errorMessage = e.toString().replaceAll('Exception:', '').trim();
+          } else if (e.toString().contains(':')) {
+            errorMessage = e.toString().split(':').last.trim();
+          }
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage, style: GoogleFonts.montserrat()),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5), // Más tiempo para leer el mensaje
+            ),
+          );
+        }
       }
     }
   }
@@ -105,7 +125,9 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
   Widget build(BuildContext context) {
     return ModuleScaffold(
       title: 'Paquetes turísticos',
-      subtitle: 'Centraliza paquetes base y promociones para el equipo',
+      subtitle: _canCreate 
+          ? 'Centraliza paquetes base y promociones para el equipo'
+          : 'Consulta los paquetes disponibles para tus cotizaciones',
       icon: Icons.card_travel_rounded,
       floatingActionButton: _canCreate ? FloatingActionButton.extended(
         onPressed: () => _openPackageForm(),
@@ -134,7 +156,9 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Crea tu primer paquete usando el botón naranja',
+            _canCreate
+                ? 'Crea tu primer paquete usando el botón naranja'
+                : 'Aún no hay paquetes disponibles en el catálogo',
             style: GoogleFonts.montserrat(fontSize: 14, color: Colors.grey[500]),
           ),
         ],
@@ -150,6 +174,7 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
         final package = _packages[index];
         return _PackageCard(
           package: package,
+          canModify: _canCreate, // Solo admins pueden modificar
           onTap: () => _openPackageForm(package: package),
           onDelete: () => _deletePackage(package.id!),
         );
@@ -161,11 +186,13 @@ class _TourPackagesScreenState extends State<TourPackagesScreen> {
 class _PackageCard extends StatefulWidget {
   const _PackageCard({
     required this.package,
+    required this.canModify,
     required this.onTap,
     required this.onDelete,
   });
 
   final TourPackage package;
+  final bool canModify;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
@@ -175,6 +202,64 @@ class _PackageCard extends StatefulWidget {
 
 class _PackageCardState extends State<_PackageCard> {
   bool _isHovered = false;
+  final StorageService _storageService = StorageService();
+  List<String> _destinationNames = [];
+  bool _isLoadingDestinations = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDestinationNames();
+  }
+
+  Future<void> _loadDestinationNames() async {
+    try {
+      debugPrint('🔍 Cargando destinos para paquete: ${widget.package.nombre}');
+      debugPrint('🔍 IDs de destinos: ${widget.package.destinosIds}');
+      
+      if (widget.package.destinosIds.isEmpty) {
+        debugPrint('⚠️ El paquete no tiene destinos asignados');
+        if (mounted) {
+          setState(() {
+            _destinationNames = [];
+            _isLoadingDestinations = false;
+          });
+        }
+        return;
+      }
+      
+      final allDestinations = await _storageService.getAllDestinations();
+      debugPrint('📍 Total destinos disponibles: ${allDestinations.length}');
+      
+      final names = <String>[];
+      for (final id in widget.package.destinosIds) {
+        try {
+          final dest = allDestinations.firstWhere((d) => d.id == id);
+          names.add('${dest.ciudad}, ${dest.pais}');
+          debugPrint('✅ Destino encontrado: ${dest.ciudad}, ${dest.pais}');
+        } catch (e) {
+          debugPrint('❌ Destino con ID $id no encontrado');
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _destinationNames = names;
+          _isLoadingDestinations = false;
+        });
+      }
+      
+      debugPrint('✅ Destinos cargados: $_destinationNames');
+    } catch (e) {
+      debugPrint('❌ Error cargando destinos: $e');
+      if (mounted) {
+        setState(() {
+          _destinationNames = [];
+          _isLoadingDestinations = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,11 +284,12 @@ class _PackageCardState extends State<_PackageCard> {
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: InkWell(
-            onTap: widget.onTap,
+            onTap: widget.canModify ? widget.onTap : null,
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -220,26 +306,67 @@ class _PackageCardState extends State<_PackageCard> {
                       children: [
                         Text(
                           widget.package.nombre,
-                          style: GoogleFonts.montserrat(fontWeight: FontWeight.w600, fontSize: 15),
+                          style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 15),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${widget.package.duracionDias} días • ${NumberFormatter.formatCurrency(widget.package.precioBase)} • ${widget.package.destinosIds.length} destino(s)',
-                          style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600]),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(Icons.schedule, size: 14, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${widget.package.duracionDias} días',
+                              style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[700]),
+                            ),
+                            const SizedBox(width: 16),
+                            Icon(Icons.attach_money, size: 14, color: Colors.grey[600]),
+                            Text(
+                              NumberFormatter.formatCurrency(widget.package.precioBase),
+                              style: GoogleFonts.montserrat(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF3D1F6E)),
+                            ),
+                          ],
                         ),
+                        if (!_isLoadingDestinations && _destinationNames.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.place, size: 14, color: Colors.grey[600]),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  _destinationNames.join(' • '),
+                                  style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[700]),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        if (widget.package.descripcion != null && widget.package.descripcion!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.package.descripcion!,
+                            style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600], height: 1.4),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 20, color: Color(0xFF3D1F6E)),
-                    onPressed: widget.onTap,
-                    tooltip: 'Editar',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                    onPressed: widget.onDelete,
-                    tooltip: 'Eliminar',
-                  ),
+                  if (widget.canModify) ...[
+                    IconButton(
+                      icon: const Icon(Icons.edit, size: 20, color: Color(0xFF3D1F6E)),
+                      onPressed: widget.onTap,
+                      tooltip: 'Editar',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                      onPressed: widget.onDelete,
+                      tooltip: 'Eliminar',
+                    ),
+                  ],
                 ],
               ),
             ),

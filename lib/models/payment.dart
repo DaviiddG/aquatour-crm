@@ -6,6 +6,8 @@ class Payment {
   final String numReferencia;
   final double monto;
   final int idReserva;
+  final int? idEmpleado;
+  final String? nombreEmpleado;
 
   Payment({
     this.id,
@@ -15,6 +17,8 @@ class Payment {
     required this.numReferencia,
     required this.monto,
     required this.idReserva,
+    this.idEmpleado,
+    this.nombreEmpleado,
   });
 
   factory Payment.fromMap(Map<String, dynamic> map) {
@@ -26,6 +30,8 @@ class Payment {
       numReferencia: map['numReferencia']?.toString() ?? map['num_referencia']?.toString() ?? '',
       monto: _parseDouble(map['monto']) ?? 0.0,
       idReserva: _parseInt(map['idReserva'] ?? map['id_reserva']) ?? 0,
+      idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado']),
+      nombreEmpleado: map['nombreEmpleado'] ?? map['nombre_empleado'],
     );
   }
 
@@ -49,6 +55,8 @@ class Payment {
     String? numReferencia,
     double? monto,
     int? idReserva,
+    int? idEmpleado,
+    String? nombreEmpleado,
   }) {
     return Payment(
       id: id ?? this.id,
@@ -58,6 +66,8 @@ class Payment {
       numReferencia: numReferencia ?? this.numReferencia,
       monto: monto ?? this.monto,
       idReserva: idReserva ?? this.idReserva,
+      idEmpleado: idEmpleado ?? this.idEmpleado,
+      nombreEmpleado: nombreEmpleado ?? this.nombreEmpleado,
     );
   }
 

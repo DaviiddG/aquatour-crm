@@ -173,6 +173,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       paymentsByReservation[payment.idReserva]!.add(payment);
     }
 
+    // Los empleados pueden editar TODOS los pagos que se les muestran
+    // (ya que el backend filtra por empleado)
+    final canModifyPayments = _canModify || _currentUser?.rol == UserRole.empleado;
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: paymentsByReservation.length,
@@ -182,7 +186,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         return _ReservationPaymentGroup(
           reservationId: reservationId,
           payments: payments,
-          canModify: _canModify,
+          canModify: canModifyPayments,
           onPaymentTap: (payment) => _openPaymentForm(payment: payment),
           onPaymentDelete: (paymentId) => _deletePayment(paymentId),
           onRefresh: _loadPayments,
@@ -435,6 +439,19 @@ class _PaymentCardState extends State<_PaymentCard> {
                             Text(
                               widget.payment.bancoEmisor!,
                               style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[500]),
+                            ),
+                          ],
+                          if (widget.payment.nombreEmpleado != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.person, size: 14, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Registrado por: ${widget.payment.nombreEmpleado}',
+                                  style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w500),
+                                ),
+                              ],
                             ),
                           ],
                         ],

@@ -496,8 +496,52 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
   Widget _buildSalesChart() {
     final sales = _metrics['sales'] ?? {};
     final completed = (sales['completed'] ?? 0).toDouble();
-    final total = (sales['total'] ?? 0).toDouble();
-    final pending = total - completed;
+    final inProcess = (sales['inProcess'] ?? 0).toDouble();
+
+    final sections = <PieChartSectionData>[];
+    
+    if (completed > 0) {
+      sections.add(PieChartSectionData(
+        value: completed,
+        title: '${completed.toInt()}\nCompletadas',
+        color: const Color(0xFFfdb913),
+        radius: 60,
+        titleStyle: GoogleFonts.montserrat(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ));
+    }
+    
+    if (inProcess > 0) {
+      sections.add(PieChartSectionData(
+        value: inProcess,
+        title: '${inProcess.toInt()}\nEn Proceso',
+        color: Colors.grey.shade300,
+        radius: 60,
+        titleStyle: GoogleFonts.montserrat(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
+      ));
+    }
+
+    // Si no hay datos, mostrar un placeholder
+    if (sections.isEmpty) {
+      sections.add(PieChartSectionData(
+        value: 1,
+        title: 'Sin datos',
+        color: Colors.grey.shade200,
+        radius: 60,
+        titleStyle: GoogleFonts.montserrat(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey,
+        ),
+      ));
+    }
 
     return Card(
       elevation: 3,
@@ -522,30 +566,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               height: 200,
               child: PieChart(
                 PieChartData(
-                  sections: [
-                    PieChartSectionData(
-                      value: completed,
-                      title: '${completed.toInt()}\nCompletadas',
-                      color: const Color(0xFFfdb913),
-                      radius: 60,
-                      titleStyle: GoogleFonts.montserrat(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    PieChartSectionData(
-                      value: pending,
-                      title: '${pending.toInt()}\nPendientes',
-                      color: Colors.grey.shade300,
-                      radius: 60,
-                      titleStyle: GoogleFonts.montserrat(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
+                  sections: sections,
                   sectionsSpace: 2,
                   centerSpaceRadius: 40,
                 ),
@@ -556,7 +577,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildLegendItem('Completadas', const Color(0xFFfdb913)),
-                _buildLegendItem('Pendientes', Colors.grey.shade300),
+                _buildLegendItem('En Proceso', Colors.grey.shade300),
               ],
             ),
           ],

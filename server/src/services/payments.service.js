@@ -8,13 +8,21 @@ const baseSelect = `
     p.banco_emisor AS bancoEmisor,
     p.num_referencia AS numReferencia,
     p.monto,
-    p.id_reserva AS idReserva
+    p.id_reserva AS idReserva,
+    r.id_empleado AS idEmpleado,
+    u.nombre AS nombreEmpleado
   FROM Pago p
+  LEFT JOIN Reserva r ON p.id_reserva = r.id_reserva
+  LEFT JOIN Empleado e ON r.id_empleado = e.id_empleado
+  LEFT JOIN Usuario u ON e.id_usuario = u.id_usuario
 `;
 
 export const findAllPayments = async () => {
   const [rows] = await query(`${baseSelect} ORDER BY p.fecha_pago DESC`);
   console.log(`📋 Pagos encontrados: ${rows.length}`);
+  if (rows.length > 0) {
+    console.log(`📋 Ejemplo de pago:`, JSON.stringify(rows[0], null, 2));
+  }
   return rows;
 };
 
@@ -41,9 +49,9 @@ export const findPaymentsByEmployee = async (idUsuarioOrEmpleado) => {
     console.log(`✅ Convertido id_usuario=${idUsuarioOrEmpleado} a id_empleado=${idEmpleado}`);
   }
   
+  // El baseSelect ya tiene los JOINs necesarios, solo agregamos el WHERE
   const [rows] = await query(`
     ${baseSelect}
-    INNER JOIN Reserva r ON p.id_reserva = r.id_reserva
     WHERE r.id_empleado = ?
     ORDER BY p.fecha_pago DESC
   `, [idEmpleado]);

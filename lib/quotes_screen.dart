@@ -148,6 +148,10 @@ class _QuotesScreenState extends State<QuotesScreen> {
   }
 
   Widget _buildQuotesList() {
+    // Los empleados pueden editar TODAS las cotizaciones que se les muestran
+    // (ya que el backend filtra por empleado)
+    final canModifyQuotes = _canModify || _currentUser?.rol == UserRole.empleado;
+    
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _quotes.length,
@@ -155,7 +159,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
         final quote = _quotes[index];
         return _QuoteCard(
           quote: quote,
-          canModify: _canModify,
+          canModify: canModifyQuotes,
           onTap: () => _openQuoteForm(quote: quote),
           onDelete: () => _deleteQuote(quote.id!),
           getStatusColor: _getStatusColor,

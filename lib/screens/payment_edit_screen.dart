@@ -6,6 +6,7 @@ import '../models/payment.dart';
 import '../models/reservation.dart';
 import '../services/storage_service.dart';
 import '../utils/number_formatter.dart';
+import '../utils/currency_input_formatter.dart';
 
 class PaymentEditScreen extends StatefulWidget {
   final Payment? payment;
@@ -45,9 +46,14 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
     _numReferenciaController = TextEditingController(
       text: widget.payment?.numReferencia ?? '',
     );
-    _montoController = TextEditingController(
-      text: widget.payment?.monto.toString() ?? '',
-    );
+    
+    // Formatear el monto inicial con puntos de miles
+    String initialMonto = '';
+    if (widget.payment?.monto != null) {
+      final formatter = NumberFormat('#,##0', 'es_CO');
+      initialMonto = formatter.format(widget.payment!.monto.toInt());
+    }
+    _montoController = TextEditingController(text: initialMonto);
     
     _loadReservations();
   }
@@ -122,13 +128,19 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
         numFactura = 'FAC-$timestamp';
       }
 
+      // Parsear el monto formateado (ej: "5.000.000" → 5000000)
+      final monto = CurrencyInputFormatter.parseFormattedValue(_montoController.text);
+      if (monto == null) {
+        throw Exception('Monto inválido');
+      }
+
       final payment = Payment(
         id: widget.payment?.id,
         fechaPago: DateTime(_fechaPago.year, _fechaPago.month, _fechaPago.day),
         metodo: _selectedMetodo,
         bancoEmisor: _bancoEmisorController.text.trim().isEmpty ? null : _bancoEmisorController.text.trim(),
         numReferencia: numFactura,
-        monto: double.parse(_montoController.text),
+        monto: monto,
         idReserva: _selectedReservationId!,
       );
 
@@ -316,13 +328,15 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _montoController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: TextInputType.number,
                         inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                          FilteringTextInputFormatter.digitsOnly,
+                          CurrencyInputFormatter(),
                         ],
                         decoration: InputDecoration(
                           labelText: 'Monto *',
                           labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                          hintText: '0',
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           prefixIcon: Padding(
@@ -340,7 +354,8 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) return 'Campo obligatorio';
-                          if (double.tryParse(value) == null) return 'Debe ser un número válido';
+                          final parsedValue = CurrencyInputFormatter.parseFormattedValue(value);
+                          if (parsedValue == null) return 'Debe ser un número válido';
                           return null;
                         },
                       ),

@@ -476,13 +476,13 @@ class StorageService {
     }
   }
 
-  Future<bool> deleteReservation(int id) async {
+  Future<void> deleteReservation(int id) async {
     try {
       await _apiService.deleteReservation(id, _authToken);
-      return true;
+      debugPrint('✅ Reserva $id eliminada exitosamente');
     } catch (e) {
       debugPrint('❌ Error eliminando reserva: $e');
-      return false;
+      rethrow; // Re-lanzar la excepción para que el UI pueda capturar el mensaje
     }
   }
 
@@ -537,8 +537,28 @@ class StorageService {
         (sum, payment) => sum + payment.monto,
       );
       
-      // Contar pagos completados (ventas = pagos realizados)
-      final totalPayments = payments.length;
+      // Calcular ventas completadas vs en proceso
+      // Una venta está completada solo si la reserva está completamente pagada
+      int completedSales = 0;
+      int inProcessSales = 0;
+      
+      // Agrupar reservas únicas que tienen pagos
+      final reservationsWithPayments = <int>{};
+      for (final payment in payments) {
+        reservationsWithPayments.add(payment.idReserva);
+      }
+      
+      for (final reservationId in reservationsWithPayments) {
+        final reservation = reservations.firstWhere((r) => r.id == reservationId);
+        final reservationPayments = await getPaymentsByReservation(reservationId);
+        final totalPaid = reservationPayments.fold<double>(0.0, (sum, p) => sum + p.monto);
+        
+        if (totalPaid >= reservation.totalPago) {
+          completedSales++; // Venta completamente pagada
+        } else {
+          inProcessSales++; // Venta con pago parcial
+        }
+      }
       
       // Calcular métricas de cotizaciones
       final totalQuotes = quotes.length;
@@ -550,10 +570,13 @@ class StorageService {
       
       return {
         'sales': {
-          'total': totalPayments,
-          'completed': totalPayments,
+          'total': completedSales + inProcessSales,
+          'completed': completedSales,
+          'inProcess': inProcessSales,
           'totalRevenue': totalRevenue,
-          'averageSale': totalPayments > 0 ? totalRevenue / totalPayments : 0.0,
+          'averageSale': (completedSales + inProcessSales) > 0 
+              ? totalRevenue / (completedSales + inProcessSales) 
+              : 0.0,
         },
         'reservations': {
           'total': totalReservations,
@@ -577,7 +600,7 @@ class StorageService {
     } catch (e) {
       debugPrint('❌ Error obteniendo métricas de desempeño: $e');
       return {
-        'sales': {'total': 0, 'completed': 0, 'totalRevenue': 0.0, 'averageSale': 0.0},
+        'sales': {'total': 0, 'completed': 0, 'inProcess': 0, 'totalRevenue': 0.0, 'averageSale': 0.0},
         'reservations': {'total': 0, 'confirmed': 0, 'pending': 0, 'inProcess': 0, 'paid': 0, 'cancelled': 0},
         'quotes': {'total': 0, 'accepted': 0, 'rejected': 0, 'pending': 0},
         'clients': {'total': 0},
@@ -706,9 +729,16 @@ class StorageService {
   Future<TourPackage> savePackage(TourPackage package) async {
     try {
       final packageData = package.toMap();
+      debugPrint('📦 Guardando paquete: ${packageData['nombre']}');
+      debugPrint('📦 Destinos a guardar: ${packageData['destinos_ids']}');
+      debugPrint('📦 Datos completos: $packageData');
+      
       final responseData = package.id == null
           ? await _apiService.createPackage(packageData, _authToken)
           : await _apiService.updatePackage(package.id!, packageData, _authToken);
+      
+      debugPrint('📦 Respuesta del servidor: $responseData');
+      
       return TourPackage.fromMap(responseData);
     } catch (e) {
       debugPrint('❌ Error guardando paquete: $e');
@@ -716,13 +746,13 @@ class StorageService {
     }
   }
 
-  Future<bool> deletePackage(int id) async {
+  Future<void> deletePackage(int id) async {
     try {
       await _apiService.deletePackage(id, _authToken);
-      return true;
+      debugPrint('✅ Paquete $id eliminado exitosamente');
     } catch (e) {
       debugPrint('❌ Error eliminando paquete: $e');
-      return false;
+      rethrow; // Re-lanzar la excepción para que el UI pueda capturar el mensaje
     }
   }
 
