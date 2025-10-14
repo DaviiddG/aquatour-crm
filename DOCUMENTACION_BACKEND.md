@@ -1,8 +1,8 @@
 # Documentación Técnica - Backend Node.js
 
 **Proyecto:** Aquatour CRM  
-**Versión:** 1.0.0  
-**Última actualización:** Octubre 2025  
+**Versión:** 1.1.0  
+**Última actualización:** 13 de Octubre 2025  
 **Tecnología:** Node.js + Express + MySQL
 
 ---
@@ -125,7 +125,7 @@ PORT=8080
 NODE_ENV=production
 
 # CORS
-CORS_ORIGIN=https://tour-crm.vercel.app,http://localhost:3000
+CORS_ORIGIN=https://aquatour-crm.vercel.app,http://localhost:3000
 
 # API Base URL (para referencias)
 API_BASE_URL=https://app-6aaf68d8-72ab-47f4-bad2-13d5ab31d374.cleverapps.io/api
@@ -162,6 +162,114 @@ export const query = (sql, params) => pool.query(sql, params);
 - Keep-alive para mantener conexiones activas
 - Timeout de 60 segundos para conexiones inactivas
 - Promesas nativas con `mysql2/promise`
+
+---
+
+## Base de Datos - Esquemas
+
+### Tabla Cliente
+
+**Estructura actualizada (v1.1.0):**
+
+```sql
+CREATE TABLE Cliente (
+  id_cliente INT PRIMARY KEY AUTO_INCREMENT,
+  nombres VARCHAR(150) NOT NULL,
+  apellidos VARCHAR(150) NOT NULL,
+  email VARCHAR(180) NOT NULL,
+  telefono VARCHAR(50) NOT NULL,
+  documento VARCHAR(60) NOT NULL,
+  nacionalidad VARCHAR(80) DEFAULT 'Perú',
+  pasaporte VARCHAR(50),
+  estado_civil VARCHAR(40) DEFAULT 'Soltero/a',
+  preferencias_viaje TEXT,
+  satisfaccion INT DEFAULT 3,
+  
+  -- Campos de origen (NUEVO v1.1.0)
+  id_contacto_origen INT NULL,
+  tipo_fuente_directa VARCHAR(100) NULL,
+  
+  -- Metadatos
+  id_usuario INT NOT NULL,
+  estado_cliente VARCHAR(40) DEFAULT 'activo',
+  fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+  fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  -- Relaciones
+  FOREIGN KEY (id_usuario) REFERENCES Usuario(id_usuario),
+  FOREIGN KEY (id_contacto_origen) REFERENCES Contacto(id_contacto) ON DELETE SET NULL,
+  
+  -- Índices
+  INDEX idx_cliente_contacto_origen (id_contacto_origen),
+  INDEX idx_cliente_fuente_directa (tipo_fuente_directa)
+);
+```
+
+**Migración para agregar campos de origen:**
+
+Archivo: `server/migrations/add_client_origin_fields.sql`
+
+```sql
+-- Agregar columna para contacto origen
+ALTER TABLE Cliente 
+ADD COLUMN id_contacto_origen INT NULL;
+
+-- Agregar clave foránea
+ALTER TABLE Cliente
+ADD CONSTRAINT fk_cliente_contacto_origen 
+  FOREIGN KEY (id_contacto_origen) 
+  REFERENCES Contacto(id_contacto)
+  ON DELETE SET NULL;
+
+-- Agregar columna para fuente directa
+ALTER TABLE Cliente 
+ADD COLUMN tipo_fuente_directa VARCHAR(100) NULL;
+
+-- Crear índices para mejorar rendimiento
+CREATE INDEX idx_cliente_contacto_origen ON Cliente(id_contacto_origen);
+CREATE INDEX idx_cliente_fuente_directa ON Cliente(tipo_fuente_directa);
+```
+
+**Consultas SQL Útiles:**
+
+```sql
+-- Ver distribución de clientes por fuente
+SELECT 
+  CASE 
+    WHEN id_contacto_origen IS NOT NULL THEN 'Contacto'
+    WHEN tipo_fuente_directa IS NOT NULL THEN tipo_fuente_directa
+    ELSE 'Sin Especificar'
+  END AS fuente,
+  COUNT(*) as total
+FROM Cliente
+GROUP BY fuente
+ORDER BY total DESC;
+
+-- Ver clientes de un contacto específico
+SELECT 
+  c.nombres,
+  c.apellidos,
+  c.email,
+  co.nombre AS contacto_origen
+FROM Cliente c
+JOIN Contacto co ON c.id_contacto_origen = co.id_contacto
+WHERE c.id_contacto_origen = ?;
+
+-- Ver clientes por fuente directa
+SELECT 
+  tipo_fuente_directa,
+  COUNT(*) as total,
+  GROUP_CONCAT(CONCAT(nombres, ' ', apellidos) SEPARATOR ', ') as clientes
+FROM Cliente
+WHERE tipo_fuente_directa IS NOT NULL
+GROUP BY tipo_fuente_directa;
+
+-- Ver clientes sin origen especificado (legacy)
+SELECT COUNT(*) as sin_origen
+FROM Cliente
+WHERE id_contacto_origen IS NULL 
+  AND tipo_fuente_directa IS NULL;
+```
 
 ---
 
@@ -541,7 +649,170 @@ export const verifyPassword = async (password, hash) => {
 
 **Archivo:** `src/services/clients.service.js`
 
-Operaciones CRUD para clientes con validaciones de negocio.
+Operaciones CRUD para clientes con validaciones de negocio y rastreo de origen.
+
+**Funciones principales:**
+
+```javascript
+// Listar todos los clientes
+export const findAllClients = async ()
+
+// Buscar cliente por ID
+export const findClientById = async (idCliente)
+
+// Buscar clientes de un usuario específico
+export const findClientsByUser = async (idUsuario)
+
+// Crear nuevo cliente
+export const createClient = async (clientData)
+
+// Actualizar cliente existente
+export const updateClient = async (idCliente, clientData)
+
+// Eliminar cliente
+export const deleteClient = async (idCliente)
+```
+
+**Campos del Cliente:**
+
+```javascript
+{
+  // Información básica
+  nombres: String,
+  apellidos: String,
+  email: String,
+  telefono: String,
+  documento: String,
+  nacionalidad: String,
+  pasaporte: String,
+  estado_civil: String,
+  preferencias_viaje: String,
+  satisfaccion: Number (1-5),
+  
+  // Origen del cliente (NUEVO v1.1.0)
+  id_contacto_origen: Number | null,    // ID del contacto que refirió
+  tipo_fuente_directa: String | null,   // Fuente directa si no vino de contacto
+  
+  // Metadatos
+  id_usuario: Number,                   // Usuario que registró
+  estado_cliente: String,               // 'activo' | 'inactivo'
+  fecha_registro: DateTime,
+  fecha_actualizacion: DateTime
+}
+```
+
+**Fuentes Directas Disponibles:**
+- `Página Web` - Cliente llegó por el sitio web
+- `Redes Sociales` - Facebook, Instagram, etc.
+- `Email` - Contacto por correo electrónico
+- `WhatsApp` - Mensaje directo por WhatsApp
+- `Llamada Telefónica` - Llamada entrante
+- `Referido` - Referido por otro cliente
+- `Otro` - Otras fuentes
+
+**Mapeo de Datos:**
+
+```javascript
+const mapDbClient = (row) => {
+  return {
+    id: row.id_cliente,
+    id_cliente: row.id_cliente,
+    nombreCompleto: `${row.nombres} ${row.apellidos}`.trim(),
+    nombre: `${row.nombres} ${row.apellidos}`.trim(),
+    nombres: row.nombres,
+    apellidos: row.apellidos,
+    email: row.email,
+    telefono: row.telefono,
+    documento: row.documento,
+    pais: row.nacionalidad,
+    nacionalidad: row.nacionalidad,
+    pasaporte: row.pasaporte,
+    estadoCivil: row.estado_civil,
+    estado_civil: row.estado_civil,
+    interes: row.preferencias_viaje || '',
+    preferencias_viaje: row.preferencias_viaje,
+    satisfaccion: row.satisfaccion,
+    
+    // Campos de origen (NUEVO)
+    id_contacto_origen: row.id_contacto_origen,
+    idContactoOrigen: row.id_contacto_origen,
+    tipo_fuente_directa: row.tipo_fuente_directa,
+    tipoFuenteDirecta: row.tipo_fuente_directa,
+    
+    // Metadatos
+    fechaRegistro: row.fecha_registro,
+    fecha_registro: row.fecha_registro,
+    fecha_actualizacion: row.fecha_actualizacion,
+    idEmpleado: row.id_usuario,
+    id_usuario: row.id_usuario,
+    estado_cliente: row.estado_cliente,
+    nombre_usuario: row.nombre_usuario,
+    apellido_usuario: row.apellido_usuario,
+  };
+};
+```
+
+**Consulta SQL Base:**
+
+```sql
+SELECT
+  c.id_cliente,
+  c.nombres,
+  c.apellidos,
+  c.email,
+  c.telefono,
+  c.documento,
+  c.nacionalidad,
+  c.pasaporte,
+  c.estado_civil,
+  c.preferencias_viaje,
+  c.satisfaccion,
+  c.fecha_registro,
+  c.fecha_actualizacion,
+  c.id_usuario,
+  c.estado_cliente,
+  c.id_contacto_origen,        -- NUEVO
+  c.tipo_fuente_directa,       -- NUEVO
+  u.nombre AS nombre_usuario,
+  u.apellido AS apellido_usuario
+FROM Cliente c
+LEFT JOIN Usuario u ON c.id_usuario = u.id_usuario
+```
+
+**Ejemplo - Crear Cliente:**
+
+```javascript
+const clientData = {
+  nombres: 'Juan',
+  apellidos: 'Pérez',
+  email: 'juan@example.com',
+  telefono: '987654321',
+  documento: '12345678',
+  nacionalidad: 'Perú',
+  pasaporte: 'PE123456',
+  estado_civil: 'Soltero/a',
+  preferencias_viaje: 'Playas y aventura',
+  satisfaccion: 4,
+  id_usuario: 1,
+  
+  // Origen: Opción 1 - Contacto existente
+  id_contacto_origen: 5,
+  tipo_fuente_directa: null,
+  
+  // Origen: Opción 2 - Fuente directa
+  // id_contacto_origen: null,
+  // tipo_fuente_directa: 'Redes Sociales',
+};
+
+const newClient = await createClient(clientData);
+```
+
+**Validaciones:**
+- Un cliente debe tener **solo uno** de los dos campos de origen:
+  - `id_contacto_origen` (si viene de un contacto)
+  - `tipo_fuente_directa` (si viene de fuente directa)
+- Nunca ambos al mismo tiempo
+- Ambos pueden ser `null` para clientes legacy
 
 ### Otros Servicios
 
@@ -699,8 +970,8 @@ testConnection();
 
 **Ejecutar:**
 ```bash
-node test-db.js
-```
+cd c:\Users\oscar\CascadeProjects\aquatour\server
+npm run dev```
 
 ---
 
@@ -716,6 +987,76 @@ node test-db.js
 8. **Cache con Redis**
 9. **Paginación en listados**
 10. **Búsqueda y filtros avanzados**
+
+---
+
+## Historial de Cambios
+
+### v1.1.0 - 13 de Octubre 2025
+
+**Sistema de Origen de Clientes**
+
+**Nuevas Funcionalidades:**
+- ✅ Rastreo de origen de clientes (Contacto o Fuente Directa)
+- ✅ Campos `id_contacto_origen` y `tipo_fuente_directa` en tabla Cliente
+- ✅ Relación con tabla Contacto mediante clave foránea
+- ✅ Índices para optimizar consultas de distribución
+- ✅ Migración SQL para agregar campos sin afectar datos existentes
+
+**Fuentes Directas Soportadas:**
+- Página Web
+- Redes Sociales
+- Email
+- WhatsApp
+- Llamada Telefónica
+- Referido
+- Otro
+
+**Archivos Modificados:**
+- `src/services/clients.service.js` - Actualizado mapeo y queries
+- `server/migrations/add_client_origin_fields.sql` - Nueva migración
+
+**Consultas SQL Agregadas:**
+- Distribución de clientes por fuente
+- Clientes por contacto específico
+- Clientes por fuente directa
+- Clientes sin origen (legacy)
+
+**Compatibilidad:**
+- ✅ Retrocompatible con clientes existentes
+- ✅ Campos opcionales (nullable)
+- ✅ No requiere modificación de clientes legacy
+
+**Documentación:**
+- ✅ Actualizada sección de ClientsService
+- ✅ Agregado esquema de tabla Cliente
+- ✅ Ejemplos de consultas SQL
+- ✅ Guía de migración
+
+---
+
+### v1.0.0 - Octubre 2025
+
+**Lanzamiento Inicial**
+
+**Funcionalidades Base:**
+- Sistema de autenticación con bcrypt
+- CRUD completo de usuarios con roles
+- CRUD de clientes
+- CRUD de contactos
+- CRUD de destinos
+- CRUD de paquetes turísticos
+- CRUD de cotizaciones
+- CRUD de reservas
+- CRUD de pagos
+- CRUD de proveedores
+
+**Infraestructura:**
+- Arquitectura en 3 capas (Routes, Controllers, Services)
+- Pool de conexiones MySQL optimizado
+- Manejo centralizado de errores
+- CORS configurado
+- Despliegue en Clever Cloud
 
 ---
 
