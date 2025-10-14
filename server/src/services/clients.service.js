@@ -17,6 +17,8 @@ const baseSelect = `
     c.fecha_actualizacion,
     c.id_usuario,
     c.estado_cliente,
+    c.id_contacto_origen,
+    c.tipo_fuente_directa,
     -- Usuario que registra
     u.nombre AS nombre_usuario,
     u.apellido AS apellido_usuario
@@ -51,6 +53,10 @@ const mapDbClient = (row) => {
     idEmpleado: row.id_usuario,
     id_usuario: row.id_usuario,
     estado_cliente: row.estado_cliente,
+    id_contacto_origen: row.id_contacto_origen,
+    idContactoOrigen: row.id_contacto_origen,
+    tipo_fuente_directa: row.tipo_fuente_directa,
+    tipoFuenteDirecta: row.tipo_fuente_directa,
     nombre_usuario: row.nombre_usuario,
     apellido_usuario: row.apellido_usuario,
   };
@@ -119,9 +125,11 @@ export const createClient = async (clientData) => {
         satisfaccion,
         id_usuario,
         estado_cliente,
+        id_contacto_origen,
+        tipo_fuente_directa,
         fecha_registro,
         fecha_actualizacion
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         clientData.nombres,
         clientData.apellidos,
@@ -135,6 +143,8 @@ export const createClient = async (clientData) => {
         clientData.satisfaccion || 3,
         clientData.id_usuario,
         'activo',
+        clientData.id_contacto_origen || null,
+        clientData.tipo_fuente_directa || null,
         new Date(),
         new Date()
       ]
@@ -178,6 +188,8 @@ export const updateClient = async (idCliente, clientData) => {
       { column: 'preferencias_viaje', key: 'preferencias_viaje' },
       { column: 'satisfaccion', key: 'satisfaccion' },
       { column: 'estado_cliente', key: 'estado_cliente' },
+      { column: 'id_contacto_origen', key: 'id_contacto_origen' },
+      { column: 'tipo_fuente_directa', key: 'tipo_fuente_directa' },
     ];
 
     for (const { column, key } of updatableFields) {

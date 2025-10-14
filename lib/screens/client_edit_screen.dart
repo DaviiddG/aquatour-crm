@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
+import 'package:aquatour/services/api_service.dart';
+import 'package:aquatour/services/storage_service.dart';
 
 /// Modelo de datos para representar un cliente
 class ClientModel {
@@ -15,6 +17,8 @@ class ClientModel {
   final String estadoCivil;
   final String preferenciasViaje;
   final int satisfaccion;
+  final int? idContactoOrigen;
+  final String? tipoFuenteDirecta;
 
   const ClientModel({
     this.id = '',
@@ -28,10 +32,27 @@ class ClientModel {
     required this.estadoCivil,
     required this.preferenciasViaje,
     required this.satisfaccion,
+    this.idContactoOrigen,
+    this.tipoFuenteDirecta,
   });
 
   /// Crea un ClientModel desde un mapa JSON
   factory ClientModel.fromJson(Map<String, dynamic> json) {
+    // Función helper para obtener el valor de contacto origen
+    int? getContactoOrigen() {
+      final value = json['id_contacto_origen'] ?? json['idContactoOrigen'];
+      if (value == null) return null;
+      if (value is int) return value;
+      return int.tryParse(value.toString());
+    }
+    
+    // Función helper para obtener el tipo de fuente directa
+    String? getFuenteDirecta() {
+      final value = json['tipo_fuente_directa'] ?? json['tipoFuenteDirecta'];
+      if (value == null || value.toString().isEmpty) return null;
+      return value.toString();
+    }
+    
     return ClientModel(
       id: json['id']?.toString() ?? '',
       nombres: json['nombres']?.toString() ?? '',
@@ -44,6 +65,8 @@ class ClientModel {
       estadoCivil: json['estado_civil']?.toString() ?? 'Soltero/a',
       preferenciasViaje: json['preferencias_viaje']?.toString() ?? '',
       satisfaccion: json['satisfaccion']?.toInt() ?? 3,
+      idContactoOrigen: getContactoOrigen(),
+      tipoFuenteDirecta: getFuenteDirecta(),
     );
   }
 
@@ -61,6 +84,8 @@ class ClientModel {
       'estado_civil': estadoCivil,
       'preferencias_viaje': preferenciasViaje,
       'satisfaccion': satisfaccion,
+      'id_contacto_origen': idContactoOrigen,
+      'tipo_fuente_directa': tipoFuenteDirecta,
     };
   }
 }
@@ -98,6 +123,13 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
   String _estadoCivil = 'Soltero/a';
   int _satisfaccion = 3; // Valor por defecto para satisfacción (escala 1-5)
   
+  // Origen del cliente
+  String _tipoOrigen = 'fuente_directa'; // 'contacto' o 'fuente_directa'
+  int? _idContactoSeleccionado;
+  String _fuenteDirecta = 'Página Web';
+  List<Map<String, dynamic>> _contactosDisponibles = [];
+  bool _isLoadingContacts = false;
+  
   // Lista de opciones para los selectores
   final List<String> _estadosCiviles = [
     'Soltero/a',
@@ -119,6 +151,16 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
     'Brasil',
     'Otro'
   ];
+  
+  final List<String> _fuentesDirectas = [
+    'Página Web',
+    'Redes Sociales',
+    'Email',
+    'WhatsApp',
+    'Llamada Telefónica',
+    'Referido',
+    'Otro'
+  ];
 
   @override
   void initState() {
@@ -137,6 +179,40 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
     // Inicializar valores de estado
     _estadoCivil = widget.clientData?.estadoCivil ?? 'Soltero/a';
     _satisfaccion = widget.clientData?.satisfaccion ?? 3;
+    
+    // Inicializar valores de origen del cliente
+    if (widget.clientData != null) {
+      if (widget.clientData!.idContactoOrigen != null) {
+        _tipoOrigen = 'contacto';
+        _idContactoSeleccionado = widget.clientData!.idContactoOrigen;
+      } else if (widget.clientData!.tipoFuenteDirecta != null && 
+                 widget.clientData!.tipoFuenteDirecta!.isNotEmpty) {
+        _tipoOrigen = 'fuente_directa';
+        _fuenteDirecta = widget.clientData!.tipoFuenteDirecta!;
+      }
+    }
+    
+    // Cargar contactos disponibles
+    _loadContacts();
+  }
+  
+  Future<void> _loadContacts() async {
+    setState(() => _isLoadingContacts = true);
+    try {
+      final token = await StorageService.getToken();
+      final contacts = await ApiService().getContacts(token);
+      if (mounted) {
+        setState(() {
+          _contactosDisponibles = contacts.whereType<Map<String, dynamic>>().toList();
+          _isLoadingContacts = false;
+        });
+      }
+    } catch (e) {
+      print('Error cargando contactos: $e');
+      if (mounted) {
+        setState(() => _isLoadingContacts = false);
+      }
+    }
   }
 
   @override
@@ -191,6 +267,8 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
         estadoCivil: _estadoCivil,
         preferenciasViaje: _preferenciasViajeController.text.trim(),
         satisfaccion: _satisfaccion,
+        idContactoOrigen: _tipoOrigen == 'contacto' ? _idContactoSeleccionado : null,
+        tipoFuenteDirecta: _tipoOrigen == 'fuente_directa' ? _fuenteDirecta : null,
       );
 
       // Cerrar el diálogo de carga
@@ -310,6 +388,10 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
                   }
                 },
               ),
+              const SizedBox(height: 24),
+              _buildSectionTitle('Origen del Cliente'),
+              const SizedBox(height: 16),
+              _buildOrigenSection(),
               const SizedBox(height: 24),
               _buildSectionTitle('Preferencias de Viaje'),
               const SizedBox(height: 16),
@@ -470,6 +552,163 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
               return null;
             },
           ),
+        ],
+      ),
+    );
+  }
+  
+  /// Construye la sección de origen del cliente
+  Widget _buildOrigenSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '¿De dónde proviene este cliente?',
+            style: GoogleFonts.montserrat(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF3D1F6E),
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // Selector de tipo de origen
+          Row(
+            children: [
+              Expanded(
+                child: RadioListTile<String>(
+                  title: const Text('Contacto Existente'),
+                  value: 'contacto',
+                  groupValue: _tipoOrigen,
+                  onChanged: (value) {
+                    setState(() => _tipoOrigen = value!);
+                  },
+                  activeColor: const Color(0xFF3D1F6E),
+                ),
+              ),
+              Expanded(
+                child: RadioListTile<String>(
+                  title: const Text('Fuente Directa'),
+                  value: 'fuente_directa',
+                  groupValue: _tipoOrigen,
+                  onChanged: (value) {
+                    setState(() => _tipoOrigen = value!);
+                  },
+                  activeColor: const Color(0xFF3D1F6E),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Mostrar selector según el tipo de origen
+          if (_tipoOrigen == 'contacto') ...[
+            if (_isLoadingContacts)
+              const Center(child: CircularProgressIndicator())
+            else if (_contactosDisponibles.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[700]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'No hay contactos disponibles. Crea contactos primero en el módulo de Contactos.',
+                        style: TextStyle(color: Colors.orange[900]),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              DropdownButtonFormField<int>(
+                value: _idContactoSeleccionado,
+                decoration: InputDecoration(
+                  labelText: 'Seleccionar Contacto',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                items: _contactosDisponibles.map((contacto) {
+                  final id = contacto['id'] ?? contacto['id_contacto'];
+                  final nombre = contacto['nombre'] ?? contacto['name'] ?? 'Sin nombre';
+                  final empresa = contacto['empresa'] ?? contacto['company'] ?? '';
+                  return DropdownMenuItem<int>(
+                    value: id is int ? id : int.tryParse(id.toString()),
+                    child: Text('$nombre${empresa.isNotEmpty ? " - $empresa" : ""}'),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() => _idContactoSeleccionado = value);
+                },
+              ),
+          ] else ...[
+            DropdownButtonFormField<String>(
+              value: _fuenteDirecta,
+              decoration: InputDecoration(
+                labelText: 'Tipo de Fuente',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+              items: _fuentesDirectas.map((fuente) {
+                IconData icon;
+                switch (fuente) {
+                  case 'Página Web':
+                    icon = Icons.language;
+                    break;
+                  case 'Redes Sociales':
+                    icon = Icons.share;
+                    break;
+                  case 'Email':
+                    icon = Icons.email;
+                    break;
+                  case 'WhatsApp':
+                    icon = Icons.chat;
+                    break;
+                  case 'Llamada Telefónica':
+                    icon = Icons.phone;
+                    break;
+                  case 'Referido':
+                    icon = Icons.people;
+                    break;
+                  default:
+                    icon = Icons.contact_page;
+                }
+                return DropdownMenuItem<String>(
+                  value: fuente,
+                  child: Row(
+                    children: [
+                      Icon(icon, size: 20, color: const Color(0xFF3D1F6E)),
+                      const SizedBox(width: 12),
+                      Text(fuente),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _fuenteDirecta = value);
+                }
+              },
+            ),
+          ],
         ],
       ),
     );

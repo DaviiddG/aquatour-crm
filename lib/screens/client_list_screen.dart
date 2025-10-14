@@ -6,6 +6,7 @@ import 'package:aquatour/services/api_service.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'package:aquatour/models/user.dart';
 import 'package:aquatour/utils/permissions_helper.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 enum _ClientFormResult { created, updated, none }
 
@@ -46,6 +47,30 @@ class _ClientListScreenState extends State<ClientListScreen> {
 
     if (count == 0) return null;
     return total / count;
+  }
+  
+  Map<String, int> _calculateClientDistribution() {
+    final distribution = <String, int>{};
+    
+    for (final client in _clients) {
+      String fuente = 'Sin Especificar';
+      
+      // Verificar si viene de un contacto
+      final idContacto = client['id_contacto_origen'] ?? client['idContactoOrigen'];
+      if (idContacto != null) {
+        fuente = 'Contacto';
+      } else {
+        // Verificar fuente directa
+        final tipoFuente = client['tipo_fuente_directa'] ?? client['tipoFuenteDirecta'];
+        if (tipoFuente != null && tipoFuente.toString().isNotEmpty) {
+          fuente = tipoFuente.toString();
+        }
+      }
+      
+      distribution[fuente] = (distribution[fuente] ?? 0) + 1;
+    }
+    
+    return distribution;
   }
 
   String _buildStarString(double average) {
@@ -157,16 +182,23 @@ class _ClientListScreenState extends State<ClientListScreen> {
               // Obtener el usuario autenticado para obtener su ID
               final currentUser = await StorageService().getCurrentUser();
               _token = await StorageService.getToken();
-              if (currentUser != null) {
-                _canModify = PermissionsHelper.canModify(currentUser.rol);
+              
+              if (currentUser == null) {
+                throw Exception('Usuario no autenticado');
               }
 
-              if (!_canModify) {
-                throw Exception('No tienes permiso para modificar clientes');
+              // Verificar permisos: Los empleados pueden editar sus propios clientes
+              final isAdmin = PermissionsHelper.canModify(currentUser.rol);
+              final isOwnClient = clientData != null && 
+                                  (clientData['id_usuario'] == currentUser.idUsuario || 
+                                   clientData['idUsuario'] == currentUser.idUsuario);
+              
+              if (!isAdmin && clientData != null && !isOwnClient) {
+                throw Exception('No tienes permiso para modificar clientes de otros usuarios');
               }
 
               final clientMap = client.toJson();
-              clientMap['id_usuario'] = currentUser!.idUsuario;
+              clientMap['id_usuario'] = currentUser.idUsuario;
 
               if (clientData == null) {
                 // Crear nuevo cliente
@@ -354,6 +386,10 @@ class _ClientListScreenState extends State<ClientListScreen> {
                           ))
                       .toList(),
                 ),
+                if (_clients.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  _buildDistributionChart(),
+                ],
                 if (_clients.isEmpty) ...[
                   const SizedBox(height: 24),
                   _buildInfoSection(),
@@ -481,6 +517,183 @@ class _ClientListScreenState extends State<ClientListScreen> {
                         : 'Registra tus primeros clientes desde el botón "Nuevo cliente" para comenzar tu cartera.',
                     style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[700], height: 1.5),
                     textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildDistributionChart() {
+    final distribution = _calculateClientDistribution();
+    
+    if (distribution.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    // Colores para cada fuente
+    final colors = {
+      'Contacto': const Color(0xFF3D1F6E),
+      'Página Web': const Color(0xFFfdb913),
+      'Redes Sociales': const Color(0xFF4CAF50),
+      'Email': const Color(0xFF2196F3),
+      'WhatsApp': const Color(0xFF25D366),
+      'Llamada Telefónica': const Color(0xFFFF9800),
+      'Referido': const Color(0xFF9C27B0),
+      'Otro': const Color(0xFF607D8B),
+      'Sin Especificar': Colors.grey,
+    };
+    
+    // Iconos para cada fuente
+    final icons = {
+      'Contacto': Icons.person,
+      'Página Web': Icons.language,
+      'Redes Sociales': Icons.share,
+      'Email': Icons.email,
+      'WhatsApp': Icons.chat,
+      'Llamada Telefónica': Icons.phone,
+      'Referido': Icons.people,
+      'Otro': Icons.contact_page,
+      'Sin Especificar': Icons.help_outline,
+    };
+    
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3D1F6E).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.pie_chart, color: Color(0xFF3D1F6E)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Distribución de Clientes por Fuente',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF3D1F6E),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Análisis de origen de tus clientes',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 250,
+              child: Row(
+                children: [
+                  // Gráfica de pastel
+                  Expanded(
+                    flex: 2,
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 60,
+                        sections: distribution.entries.map((entry) {
+                          final total = distribution.values.reduce((a, b) => a + b);
+                          final percentage = (entry.value / total * 100).toStringAsFixed(1);
+                          return PieChartSectionData(
+                            color: colors[entry.key] ?? Colors.grey,
+                            value: entry.value.toDouble(),
+                            title: '$percentage%',
+                            radius: 80,
+                            titleStyle: GoogleFonts.montserrat(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  // Leyenda
+                  Expanded(
+                    flex: 1,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: distribution.entries.map((entry) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: colors[entry.key] ?? Colors.grey,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  icons[entry.key] ?? Icons.help_outline,
+                                  size: 18,
+                                  color: Colors.grey[700],
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    entry.key,
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: const Color(0xFF1F1F1F),
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '${entry.value}',
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF3D1F6E),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
                   ),
                 ],
               ),
