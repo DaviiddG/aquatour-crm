@@ -11,13 +11,21 @@ const baseSelect = `
     r.fecha_fin_viaje AS fechaFinViaje,
     r.id_cliente AS idCliente,
     r.id_paquete AS idPaquete,
-    r.id_empleado AS idEmpleado
+    r.id_empleado AS idEmpleado,
+    CAST(COALESCE((
+      SELECT SUM(p.monto)
+      FROM Pago p
+      WHERE p.id_reserva = r.id_reserva
+    ), 0) AS DECIMAL(10,2)) AS totalPagado
   FROM Reserva r
 `;
 
 export const findAllReservations = async () => {
   const [rows] = await query(`${baseSelect} ORDER BY r.id_reserva DESC`);
   console.log(`📋 Reservas encontradas: ${rows.length}`);
+  if (rows.length > 0) {
+    console.log(`📦 Primera reserva con totalPagado:`, rows[0]);
+  }
   return rows;
 };
 

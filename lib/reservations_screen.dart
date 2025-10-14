@@ -15,7 +15,7 @@ class ReservationsScreen extends StatefulWidget {
   State<ReservationsScreen> createState() => _ReservationsScreenState();
 }
 
-class _ReservationsScreenState extends State<ReservationsScreen> {
+class _ReservationsScreenState extends State<ReservationsScreen> with WidgetsBindingObserver {
   final StorageService _storageService = StorageService();
   List<Reservation> _reservations = [];
   User? _currentUser;
@@ -25,7 +25,22 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadReservations();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Recargar cuando la app vuelve a estar activa
+      _loadReservations();
+    }
   }
 
   Future<void> _loadReservations() async {
@@ -83,6 +98,13 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
           ? 'Gestiona tus reservas y tareas pendientes'
           : 'Supervisa todas las reservas del equipo',
       icon: Icons.event_available_rounded,
+      actions: [
+        IconButton(
+          tooltip: 'Actualizar lista',
+          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF3D1F6E)),
+          onPressed: _loadReservations,
+        ),
+      ],
       floatingActionButton: canCreateReservation
           ? FloatingActionButton.extended(
               onPressed: () => _openReservationForm(),
@@ -234,17 +256,6 @@ class _ReservationCard extends StatefulWidget {
 class _ReservationCardState extends State<_ReservationCard> {
   bool _isHovered = false;
 
-  Color _getStatusColor() {
-    switch (widget.reservation.estado) {
-      case ReservationStatus.confirmada:
-        return Colors.green;
-      case ReservationStatus.cancelada:
-        return Colors.red;
-      default:
-        return Colors.orange;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy');
@@ -306,15 +317,15 @@ class _ReservationCardState extends State<_ReservationCard> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: _getStatusColor().withOpacity(0.1),
+                                  color: Color(widget.reservation.paymentStatus.colorValue).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  widget.reservation.estado.displayName,
+                                  widget.reservation.paymentStatus.displayName,
                                   style: GoogleFonts.montserrat(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
-                                    color: _getStatusColor(),
+                                    color: Color(widget.reservation.paymentStatus.colorValue),
                                   ),
                                 ),
                               ),

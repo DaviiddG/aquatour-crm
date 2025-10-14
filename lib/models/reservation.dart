@@ -20,6 +20,26 @@ enum ReservationStatus {
   }
 }
 
+enum PaymentStatus {
+  pendiente('Pendiente', 0xFFFF9800), // Naranja
+  parcial('Pago Parcial', 0xFF2196F3), // Azul
+  pagada('Pagada', 0xFF4CAF50); // Verde
+
+  const PaymentStatus(this.displayName, this.colorValue);
+  final String displayName;
+  final int colorValue;
+
+  static PaymentStatus fromAmounts(double totalPagado, double totalReserva) {
+    if (totalPagado <= 0) {
+      return PaymentStatus.pendiente;
+    } else if (totalPagado >= totalReserva) {
+      return PaymentStatus.pagada;
+    } else {
+      return PaymentStatus.parcial;
+    }
+  }
+}
+
 class Reservation extends Equatable {
   const Reservation({
     this.id,
@@ -33,6 +53,7 @@ class Reservation extends Equatable {
     this.idPaquete,
     required this.idEmpleado,
     this.notas,
+    this.totalPagado = 0,
   });
 
   final int? id;
@@ -46,6 +67,10 @@ class Reservation extends Equatable {
   final int? idPaquete;
   final int idEmpleado;
   final String? notas;
+  final double totalPagado;
+
+  // Calcula el estado de pago basado en los montos
+  PaymentStatus get paymentStatus => PaymentStatus.fromAmounts(totalPagado, totalPago);
 
   Reservation copyWith({
     int? id,
@@ -59,6 +84,7 @@ class Reservation extends Equatable {
     int? idPaquete,
     int? idEmpleado,
     String? notas,
+    double? totalPagado,
   }) {
     return Reservation(
       id: id ?? this.id,
@@ -72,6 +98,7 @@ class Reservation extends Equatable {
       idPaquete: idPaquete ?? this.idPaquete,
       idEmpleado: idEmpleado ?? this.idEmpleado,
       notas: notas ?? this.notas,
+      totalPagado: totalPagado ?? this.totalPagado,
     );
   }
 
@@ -88,6 +115,7 @@ class Reservation extends Equatable {
       idPaquete: _parseInt(map['idPaquete'] ?? map['id_paquete']),
       idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado']) ?? 0,
       notas: map['notas']?.toString(),
+      totalPagado: _parseDouble(map['totalPagado'] ?? map['total_pagado']) ?? 0,
     );
   }
 
@@ -139,5 +167,6 @@ class Reservation extends Equatable {
         idPaquete,
         idEmpleado,
         notas,
+        totalPagado,
       ];
 }

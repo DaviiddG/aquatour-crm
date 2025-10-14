@@ -444,6 +444,10 @@ class StorageService {
   Future<List<Reservation>> getAllReservations() async {
     try {
       final reservationsData = await _apiService.getReservations(_authToken);
+      debugPrint('📦 Datos de reservas recibidos: ${reservationsData.length} reservas');
+      if (reservationsData.isNotEmpty) {
+        debugPrint('📦 Primera reserva: ${reservationsData[0]}');
+      }
       return reservationsData.map((resMap) => Reservation.fromMap(resMap as Map<String, dynamic>)).toList();
     } catch (e) {
       debugPrint('❌ Error obteniendo reservas: $e');
