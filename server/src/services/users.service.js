@@ -227,6 +227,7 @@ export const updateUser = async (idUsuario, userData) => {
       { column: 'ciudad_residencia', keys: ['ciudad_residencia'] },
       { column: 'pais_residencia', keys: ['pais_residencia'] },
       { column: 'id_rol', keys: ['id_rol', 'rol'] },
+      { column: 'activo', keys: ['activo'] },
     ];
 
     for (const { column, keys } of fieldMapping) {

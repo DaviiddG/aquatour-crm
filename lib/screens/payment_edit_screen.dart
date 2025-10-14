@@ -7,6 +7,7 @@ import '../models/reservation.dart';
 import '../services/storage_service.dart';
 import '../utils/number_formatter.dart';
 import '../utils/currency_input_formatter.dart';
+import '../widgets/unsaved_changes_dialog.dart';
 
 class PaymentEditScreen extends StatefulWidget {
   final Payment? payment;
@@ -32,6 +33,7 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
 
   bool _isSaving = false;
   bool _isLoading = true;
+  bool _hasUnsavedChanges = false;
 
   @override
   void initState() {
@@ -55,7 +57,20 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
     }
     _montoController = TextEditingController(text: initialMonto);
     
+    // Agregar listeners
+    _bancoEmisorController.addListener(_markAsChanged);
+    _numReferenciaController.addListener(_markAsChanged);
+    _montoController.addListener(_markAsChanged);
+    
     _loadReservations();
+  }
+  
+  void _markAsChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = true;
+      });
+    }
   }
 
   Future<void> _loadReservations() async {
@@ -105,7 +120,10 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
     );
 
     if (picked != null) {
-      setState(() => _fechaPago = picked);
+      setState(() {
+        _fechaPago = picked;
+      });
+      _markAsChanged();
     }
   }
 
@@ -145,6 +163,8 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
       );
 
       await _storageService.savePayment(payment);
+
+      setState(() => _hasUnsavedChanges = false);
 
       // Verificar si la reserva está completamente pagada
       final balance = await _storageService.getReservationBalance(_selectedReservationId!);
@@ -192,12 +212,27 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
   Widget build(BuildContext context) {
     final isEditing = widget.payment != null;
 
-    return Scaffold(
+    return UnsavedChangesHandler(
+      hasUnsavedChanges: _hasUnsavedChanges,
+      onSave: _savePayment,
+      child: Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF3D1F6E)),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            if (_hasUnsavedChanges) {
+              final result = await showUnsavedChangesDialog(
+                context,
+                onSave: _savePayment,
+              );
+              if (result == true && mounted) {
+                Navigator.of(context).pop();
+              }
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,7 +285,10 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                             ),
                           );
                         }).toList(),
-                        onChanged: (value) => setState(() => _selectedReservationId = value),
+                        onChanged: (value) {
+                          setState(() => _selectedReservationId = value);
+                          _markAsChanged();
+                        },
                         validator: (value) => value == null ? 'Selecciona una reserva' : null,
                       ),
                     ],
@@ -299,7 +337,10 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                             child: Text(method, style: GoogleFonts.montserrat(fontSize: 14)),
                           );
                         }).toList(),
-                        onChanged: (value) => setState(() => _selectedMetodo = value!),
+                        onChanged: (value) {
+                          setState(() => _selectedMetodo = value!);
+                          _markAsChanged();
+                        },
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
@@ -387,6 +428,7 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                 ],
               ),
             ),
+      ),
     );
   }
 

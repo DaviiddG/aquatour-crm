@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/destination.dart';
 import '../services/storage_service.dart';
 import '../data/countries_cities.dart';
+import '../widgets/unsaved_changes_dialog.dart';
 
 class DestinationEditScreen extends StatefulWidget {
   final Destination? destination;
@@ -27,6 +28,7 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
   late TextEditingController _monedaController;
 
   bool _isSaving = false;
+  bool _hasUnsavedChanges = false;
 
   @override
   void initState() {
@@ -41,6 +43,21 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
     _temporadaController = TextEditingController(text: widget.destination?.temporadaAlta ?? '');
     _idiomaController = TextEditingController(text: widget.destination?.idiomaPrincipal ?? '');
     _monedaController = TextEditingController(text: widget.destination?.moneda ?? '');
+    
+    // Agregar listeners para detectar cambios
+    _descripcionController.addListener(_markAsChanged);
+    _climaController.addListener(_markAsChanged);
+    _temporadaController.addListener(_markAsChanged);
+    _idiomaController.addListener(_markAsChanged);
+    _monedaController.addListener(_markAsChanged);
+  }
+  
+  void _markAsChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = true;
+      });
+    }
   }
 
   @override
@@ -71,6 +88,11 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
       );
 
       await _storageService.saveDestination(destination);
+      
+      // Resetear el flag de cambios sin guardar
+      setState(() {
+        _hasUnsavedChanges = false;
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -105,12 +127,27 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
   Widget build(BuildContext context) {
     final isEditing = widget.destination != null;
 
-    return Scaffold(
+    return UnsavedChangesHandler(
+      hasUnsavedChanges: _hasUnsavedChanges,
+      onSave: _saveDestination,
+      child: Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF3D1F6E)),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            if (_hasUnsavedChanges) {
+              final result = await showUnsavedChangesDialog(
+                context,
+                onSave: _saveDestination,
+              );
+              if (result == true && mounted) {
+                Navigator.of(context).pop();
+              }
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,6 +196,7 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
                         _idiomaController.text = getLanguageForCountry(value) ?? '';
                       }
                     });
+                    _markAsChanged();
                   },
                   validator: (value) => value == null ? 'El país es obligatorio' : null,
                 ),
@@ -168,9 +206,8 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
                   value: _selectedCiudad,
                   items: _availableCities,
                   onChanged: (value) {
-                    setState(() {
-                      _selectedCiudad = value;
-                    });
+                    setState(() => _selectedCiudad = value);
+                    _markAsChanged();
                   },
                   validator: (value) => value == null ? 'La ciudad es obligatoria' : null,
                   enabled: _selectedPais != null,
@@ -251,6 +288,7 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

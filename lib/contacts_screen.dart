@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/models/contact.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
+import 'package:aquatour/screens/contact_edit_screen.dart';
 
 class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});
@@ -46,6 +47,19 @@ class _ContactsScreenState extends State<ContactsScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _navigateToAddContact() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ContactEditScreen(),
+      ),
+    );
+    
+    if (result == true) {
+      _loadContacts();
     }
   }
 
@@ -154,6 +168,19 @@ class _ContactsScreenState extends State<ContactsScreen> {
         );
       },
     );
+  }
+
+  Future<void> _navigateToEditContact(Contact contact) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ContactEditScreen(contact: contact),
+      ),
+    );
+    
+    if (result == true) {
+      _loadContacts();
+    }
   }
 
   Future<void> _showEditContactDialog(Contact contact) async {
@@ -327,7 +354,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         ),
       ],
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddContactDialog,
+        onPressed: _navigateToAddContact,
         backgroundColor: const Color(0xFFf7941e),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nuevo contacto'),
@@ -343,7 +370,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     final contact = _contacts[index];
                     return _ContactCard(
                       contact: contact,
-                      onEdit: () => _showEditContactDialog(contact),
+                      onEdit: () => _navigateToEditContact(contact),
                       onDelete: () => _deleteContact(contact),
                     );
                   },

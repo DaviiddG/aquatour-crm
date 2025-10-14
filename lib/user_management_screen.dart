@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/models/user.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
-import 'package:aquatour/user_edit_screen.dart';
+import 'package:aquatour/screens/user_edit_screen.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -103,7 +103,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
 
-  Future<void> _openEditScreen(User user) async {
+  Future<void> _openEditScreen(User? user) async {
     if (!_canEditUser(user)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -114,474 +114,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       return;
     }
 
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => UserEditScreen(
-          user: user,
-          currentUser: _currentUser,
-          storageService: _storageService,
-          onUpdated: () async {
-            await _loadUsers();
-          },
-        ),
+        builder: (_) => UserEditScreen(user: user),
       ),
     );
-  }
-
-  Future<void> _showUserDialog({User? userToEdit}) async {
-    if (_currentUser?.puedeGestionarUsuarios != true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No tienes permisos para gestionar usuarios'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (!_canEditUser(userToEdit)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No puedes editar usuarios con un rol igual o superior al tuyo'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    final isEditing = userToEdit != null;
-    final formKey = GlobalKey<FormState>();
     
-    final nombreController = TextEditingController(text: userToEdit?.nombre ?? '');
-    final apellidoController = TextEditingController(text: userToEdit?.apellido ?? '');
-    final emailController = TextEditingController(text: userToEdit?.email ?? '');
-    final numDocumentoController = TextEditingController(text: userToEdit?.numDocumento ?? '');
-    final telefonoController = TextEditingController(text: userToEdit?.telefono ?? '');
-    final direccionController = TextEditingController(text: userToEdit?.direccion ?? '');
-    final ciudadController = TextEditingController(text: userToEdit?.ciudadResidencia ?? '');
-    final paisController = TextEditingController(text: userToEdit?.paisResidencia ?? '');
-    final contrasenaController = TextEditingController();
-    
-    String tipoDocumento = userToEdit?.tipoDocumento ?? 'CC';
-    String genero = userToEdit?.genero ?? 'Masculino';
-    UserRole rol = userToEdit?.rol ?? UserRole.empleado;
-    bool activo = userToEdit?.activo ?? true;
-    DateTime fechaNacimiento = userToEdit?.fechaNacimiento ?? DateTime.now().subtract(const Duration(days: 365 * 25));
-
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(isEditing ? 'Editar Usuario' : 'Agregar Usuario'),
-              content: Form(
-                key: formKey,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                child: SingleChildScrollView(
-                  child: SizedBox(
-                    width: 500,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Email y Rol
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: emailController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Email (Login) *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                keyboardType: TextInputType.emailAddress,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Email es obligatorio';
-                                  }
-                                  final emailRegExp = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-                                  if (!emailRegExp.hasMatch(value)) {
-                                    return 'Formato de email no válido';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 1,
-                              child: DropdownButtonFormField<UserRole>(
-                                isExpanded: true,
-                                value: rol,
-                                decoration: const InputDecoration(
-                                  labelText: 'Rol *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: UserRole.values.map((UserRole role) => 
-                                  DropdownMenuItem<UserRole>(
-                                    value: role,
-                                    child: Text(
-                                      role.displayName,
-                                      style: const TextStyle(fontSize: 14),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ).toList(),
-                                onChanged: (UserRole? value) {
-                                  if (value != null) {
-                                    setDialogState(() {
-                                      rol = value;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Nombre y Apellido
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: nombreController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Nombre *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (value) => value!.isEmpty ? 'Nombre es obligatorio' : null,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextFormField(
-                                controller: apellidoController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Apellido *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (value) => value!.isEmpty ? 'Apellido es obligatorio' : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Tipo y Número de Documento
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 1,
-                              child: DropdownButtonFormField<String>(
-                                value: tipoDocumento,
-                                decoration: const InputDecoration(
-                                  labelText: 'Tipo Doc.',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: const [
-                                  DropdownMenuItem(value: 'CC', child: Text('CC')),
-                                  DropdownMenuItem(value: 'CE', child: Text('CE')),
-                                  DropdownMenuItem(value: 'TI', child: Text('TI')),
-                                  DropdownMenuItem(value: 'PP', child: Text('PP')),
-                                ],
-                                onChanged: (value) {
-                                  setDialogState(() {
-                                    tipoDocumento = value!;
-                                  });
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: numDocumentoController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Número de Documento *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                keyboardType: TextInputType.number,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Este campo es obligatorio';
-                                  }
-                                  if (int.tryParse(value) == null) {
-                                    return 'Solo se permiten números';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Fecha de Nacimiento y Género
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: InkWell(
-                                onTap: () async {
-                                  final date = await showDatePicker(
-                                    context: context,
-                                    initialDate: fechaNacimiento,
-                                    firstDate: DateTime(1900),
-                                    lastDate: DateTime.now(),
-                                  );
-                                  if (date != null) {
-                                    setDialogState(() {
-                                      fechaNacimiento = date;
-                                    });
-                                  }
-                                },
-                                child: InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Fecha de Nacimiento *',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  child: Text(
-                                    '${fechaNacimiento.day}/${fechaNacimiento.month}/${fechaNacimiento.year}',
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                value: genero,
-                                decoration: const InputDecoration(
-                                  labelText: 'Género',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: const [
-                                  DropdownMenuItem(value: 'Masculino', child: Text('Masculino')),
-                                  DropdownMenuItem(value: 'Femenino', child: Text('Femenino')),
-                                  DropdownMenuItem(value: 'Otro', child: Text('Otro')),
-                                ],
-                                onChanged: (value) {
-                                  setDialogState(() {
-                                    genero = value!;
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Teléfono y Estado
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: telefonoController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Teléfono *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                keyboardType: TextInputType.phone,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Este campo es obligatorio';
-                                  }
-                                  final phoneRegExp = RegExp(r'^\+?[0-9\s]+$');
-                                  if (!phoneRegExp.hasMatch(value)) {
-                                    return 'Formato no válido';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 1,
-                              child: Row(
-                                children: [
-                                  const Text('Activo'),
-                                  const SizedBox(width: 10),
-                                  Switch(
-                                    value: activo,
-                                    onChanged: (value) {
-                                      setDialogState(() {
-                                        activo = value;
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Dirección
-                        TextFormField(
-                          controller: direccionController,
-                          decoration: const InputDecoration(
-                            labelText: 'Dirección *',
-                            border: OutlineInputBorder(),
-                          ),
-                           validator: (value) => value!.isEmpty ? 'Dirección es obligatoria' : null,
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Ciudad y País
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: ciudadController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Ciudad *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (value) => value!.isEmpty ? 'Ciudad es obligatoria' : null,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextFormField(
-                                controller: paisController,
-                                decoration: const InputDecoration(
-                                  labelText: 'País *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (value) => value!.isEmpty ? 'País es obligatorio' : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Contraseña
-                        TextFormField(
-                          controller: contrasenaController,
-                          decoration: InputDecoration(
-                            labelText: isEditing ? 'Nueva Contraseña (opcional)' : 'Contraseña *',
-                            border: const OutlineInputBorder(),
-                          ),
-                          obscureText: true,
-                          validator: (value) {
-                            if (!isEditing && (value == null || value.isEmpty)) {
-                              return 'Contraseña es obligatoria';
-                            }
-                            if (value != null && value.isNotEmpty && value.length < 6) {
-                              return 'Mínimo 6 caracteres';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text('Cancelar'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                ElevatedButton(
-                  child: Text(isEditing ? 'Actualizar' : 'Guardar'),
-                  onPressed: () async {
-                    if (!formKey.currentState!.validate()) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Por favor corrige los errores en el formulario'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                      return;
-                    }
-
-                    final emailExists = await _storageService.emailExists(
-                      emailController.text, 
-                      excludeUserId: userToEdit?.idUsuario,
-                    );
-                    
-                    if (emailExists) {
-                      if(mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Este email ya está en uso'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                      return;
-                    }
-                    
-                    final userData = User(
-                      idUsuario: userToEdit?.idUsuario,
-                      nombre: nombreController.text,
-                      apellido: apellidoController.text,
-                      email: emailController.text,
-                      rol: rol,
-                      tipoDocumento: tipoDocumento,
-                      numDocumento: numDocumentoController.text,
-                      fechaNacimiento: fechaNacimiento,
-                      genero: genero,
-                      telefono: telefonoController.text,
-                      direccion: direccionController.text,
-                      ciudadResidencia: ciudadController.text,
-                      paisResidencia: paisController.text,
-                      contrasena: isEditing && contrasenaController.text.isEmpty 
-                          ? userToEdit!.contrasena 
-                          : contrasenaController.text,
-                      activo: activo,
-                      createdAt: userToEdit?.createdAt ?? DateTime.now(),
-                      updatedAt: DateTime.now(),
-                    );
-
-                    try {
-                      if (isEditing) {
-                        await _storageService.updateUser(userData);
-                      } else {
-                        await _storageService.insertUser(userData);
-                      }
-                      
-                      if(mounted) Navigator.of(context).pop();
-                      await _loadUsers();
-                      
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(isEditing 
-                                ? 'Usuario actualizado exitosamente' 
-                                : 'Usuario agregado exitosamente'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error ${isEditing ? 'actualizando' : 'agregando'} usuario: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+    if (result == true) {
+      await _loadUsers();
+    }
   }
 
   @override
@@ -601,7 +142,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ],
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
-              onPressed: () => _showUserDialog(),
+              onPressed: () => _openEditScreen(null),
               backgroundColor: const Color(0xFFf7941e),
               icon: const Icon(Icons.add_rounded),
               label: const Text('Nuevo usuario'),
@@ -610,7 +151,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _users.isEmpty
-              ? _EmptyUsersState(onCreate: canManage ? () => _showUserDialog() : null)
+              ? _EmptyUsersState(onCreate: canManage ? () => _openEditScreen(null) : null)
               : _UserBoard(
                   currentUser: _currentUser,
                   users: _users,
@@ -803,8 +344,8 @@ class _UserCardState extends State<_UserCard> {
 
   @override
   Widget build(BuildContext context) {
-    final hasEditAction = widget.canEdit && widget.onEdit != null;
-    final hasDeleteAction = widget.canDelete && widget.onDelete != null;
+    final hasEditAction = widget.canEdit;
+    final hasDeleteAction = widget.canDelete;
     final actionButtons = <Widget>[
       if (hasEditAction)
         IconButton(
@@ -911,11 +452,32 @@ class _UserCardState extends State<_UserCard> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  widget.user.activo ? 'Activo' : 'Inactivo',
-                  style: GoogleFonts.montserrat(
-                    fontWeight: FontWeight.w600,
-                    color: widget.user.activo ? const Color(0xFF1B8D5E) : const Color(0xFFB3261E),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: widget.user.activo 
+                        ? const Color(0xFF1B8D5E).withOpacity(0.1) 
+                        : const Color(0xFFB3261E).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        widget.user.activo ? Icons.check_circle : Icons.cancel,
+                        size: 16,
+                        color: widget.user.activo ? const Color(0xFF1B8D5E) : const Color(0xFFB3261E),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        widget.user.activo ? 'Activo' : 'Inactivo',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: widget.user.activo ? const Color(0xFF1B8D5E) : const Color(0xFFB3261E),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 actionButtons.isEmpty

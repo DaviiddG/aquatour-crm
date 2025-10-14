@@ -1,3 +1,5 @@
+import 'companion.dart';
+
 enum QuoteStatus {
   pendiente,
   aceptada,
@@ -27,6 +29,7 @@ class Quote {
   final int idCliente;
   final int idEmpleado;
   final QuoteStatus estado;
+  final List<Companion> acompanantes;
 
   Quote({
     this.id,
@@ -37,6 +40,7 @@ class Quote {
     required this.idCliente,
     required this.idEmpleado,
     this.estado = QuoteStatus.pendiente,
+    this.acompanantes = const [],
   });
 
   factory Quote.fromMap(Map<String, dynamic> map) {
@@ -58,6 +62,16 @@ class Quote {
       }
     }
 
+    // Parsear acompañantes si existen
+    List<Companion> companions = [];
+    if (map['acompanantes'] != null) {
+      if (map['acompanantes'] is List) {
+        companions = (map['acompanantes'] as List)
+            .map((c) => Companion.fromMap(c as Map<String, dynamic>))
+            .toList();
+      }
+    }
+
     return Quote(
       id: _parseInt(map['id'] ?? map['id_cotizacion']),
       fechaInicioViaje: _parseDate(map['fechaInicioViaje'] ?? map['fecha_inicio_viaje']),
@@ -67,6 +81,7 @@ class Quote {
       idCliente: _parseInt(map['idCliente'] ?? map['id_cliente']) ?? 0,
       idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado']) ?? 0,
       estado: status,
+      acompanantes: companions,
     );
   }
 
@@ -80,6 +95,7 @@ class Quote {
       'id_cliente': idCliente,
       'id_empleado': idEmpleado,
       'estado': estado.name,
+      'acompanantes': acompanantes.map((c) => c.toMap()).toList(),
     };
   }
 
@@ -92,6 +108,7 @@ class Quote {
     int? idCliente,
     int? idEmpleado,
     QuoteStatus? estado,
+    List<Companion>? acompanantes,
   }) {
     return Quote(
       id: id ?? this.id,
@@ -102,6 +119,7 @@ class Quote {
       idCliente: idCliente ?? this.idCliente,
       idEmpleado: idEmpleado ?? this.idEmpleado,
       estado: estado ?? this.estado,
+      acompanantes: acompanantes ?? this.acompanantes,
     );
   }
 

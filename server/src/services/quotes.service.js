@@ -1,4 +1,10 @@
 import { query } from '../config/db.js';
+import {
+  findCompanionsByQuote,
+  createMultipleCompanions,
+  updateCompanionsByQuote,
+  deleteCompanionsByQuote,
+} from './companions.service.js';
 
 const baseSelect = `
   SELECT
@@ -16,6 +22,12 @@ const baseSelect = `
 export const findAllQuotes = async () => {
   const [rows] = await query(`${baseSelect} ORDER BY c.fecha_inicio_viaje DESC`);
   console.log(`📋 Cotizaciones encontradas: ${rows.length}`);
+  
+  // Cargar acompañantes para cada cotización
+  for (const quote of rows) {
+    quote.acompanantes = await findCompanionsByQuote(quote.id);
+  }
+  
   return rows;
 };
 
@@ -31,12 +43,25 @@ export const findQuotesByEmployee = async (idUsuario) => {
   const idEmpleado = empleadoRows[0].id_empleado;
   const [rows] = await query(`${baseSelect} WHERE c.id_empleado = ? ORDER BY c.fecha_inicio_viaje DESC`, [idEmpleado]);
   console.log(`📋 Cotizaciones del empleado ${idEmpleado} (usuario ${idUsuario}): ${rows.length}`);
+  
+  // Cargar acompañantes para cada cotización
+  for (const quote of rows) {
+    quote.acompanantes = await findCompanionsByQuote(quote.id);
+  }
+  
   return rows;
 };
 
 export const findQuoteById = async (idCotizacion) => {
   const [rows] = await query(`${baseSelect} WHERE c.id_cotizacion = ? LIMIT 1`, [idCotizacion]);
-  return rows[0] ?? null;
+  const quote = rows[0] ?? null;
+  
+  if (quote) {
+    // Cargar acompañantes
+    quote.acompanantes = await findCompanionsByQuote(quote.id);
+  }
+  
+  return quote;
 };
 
 export const createQuote = async (payload) => {
@@ -78,8 +103,17 @@ export const createQuote = async (payload) => {
     [fechaInicioViaje, fechaFinViaje, precioEstimado, idPaquete, idCliente, idEmpleado]
   );
 
-  console.log(`✅ Cotización creada con id=${result.insertId}`);
-  return findQuoteById(result.insertId);
+  const idCotizacion = result.insertId;
+  console.log(`✅ Cotización creada con id=${idCotizacion}`);
+  
+  // Crear acompañantes si existen
+  const acompanantes = payload.acompanantes || [];
+  if (acompanantes.length > 0) {
+    console.log(`👥 Creando ${acompanantes.length} acompañantes...`);
+    await createMultipleCompanions(idCotizacion, acompanantes);
+  }
+  
+  return findQuoteById(idCotizacion);
 };
 
 export const updateQuote = async (idCotizacion, payload) => {
@@ -107,10 +141,17 @@ export const updateQuote = async (idCotizacion, payload) => {
   }
 
   console.log(`✅ Cotización ${idCotizacion} actualizada`);
+  
+  // Actualizar acompañantes
+  const acompanantes = payload.acompanantes || [];
+  console.log(`👥 Actualizando acompañantes (${acompanantes.length})...`);
+  await updateCompanionsByQuote(idCotizacion, acompanantes);
+  
   return findQuoteById(idCotizacion);
 };
 
 export const deleteQuote = async (idCotizacion) => {
+  // Los acompañantes se eliminan automáticamente por ON DELETE CASCADE
   const [result] = await query(`DELETE FROM Cotizaciones WHERE id_cotizacion = ?`, [idCotizacion]);
   return result.affectedRows > 0;
 };

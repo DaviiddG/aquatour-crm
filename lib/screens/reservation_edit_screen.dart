@@ -7,6 +7,7 @@ import '../models/client.dart';
 import '../models/tour_package.dart';
 import '../services/storage_service.dart';
 import '../utils/number_formatter.dart';
+import '../widgets/unsaved_changes_dialog.dart';
 
 class ReservationEditScreen extends StatefulWidget {
   final Reservation? reservation;
@@ -33,6 +34,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
   late TextEditingController _notasController;
 
   bool _isSaving = false;
+  bool _hasUnsavedChanges = false;
   bool _isLoading = true;
 
   @override
@@ -53,7 +55,19 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
       text: widget.reservation?.notas ?? '',
     );
     
+    _cantidadPersonasController.addListener(_markAsChanged);
+    _totalPagoController.addListener(_markAsChanged);
+    _notasController.addListener(_markAsChanged);
+    
     _loadData();
+  }
+  
+  void _markAsChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = true;
+      });
+    }
   }
 
   Future<void> _loadData() async {
@@ -85,16 +99,14 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
       _selectedPackageId = packageId;
       if (packageId != null) {
         final package = _packages.firstWhere((p) => p.id == packageId);
-        // Sugerir duración basada en el paquete
+        // Auto-calcular precio y fechas sugeridas
+        _totalPagoController.text = package.precioBase.toString();
         if (_fechaInicio != null) {
           _fechaFin = _fechaInicio!.add(Duration(days: package.duracionDias));
         }
-        // Sugerir precio base
-        if (_totalPagoController.text.isEmpty) {
-          _totalPagoController.text = package.precioBase.toString();
-        }
       }
     });
+    _markAsChanged();
   }
 
   @override
@@ -163,6 +175,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
         _fechaInicio = picked.start;
         _fechaFin = picked.end;
       });
+      _markAsChanged();
     }
   }
 
@@ -209,6 +222,8 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
       debugPrint('🔍 Creando reserva con idEmpleado: ${currentUser.idUsuario}, idPaquete: $_selectedPackageId');
 
       await _storageService.saveReservation(reservation);
+      
+      setState(() => _hasUnsavedChanges = false);
 
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -230,12 +245,27 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
   Widget build(BuildContext context) {
     final isEditing = widget.reservation != null;
 
-    return Scaffold(
+    return UnsavedChangesHandler(
+      hasUnsavedChanges: _hasUnsavedChanges,
+      onSave: _saveReservation,
+      child: Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF3D1F6E)),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            if (_hasUnsavedChanges) {
+              final result = await showUnsavedChangesDialog(
+                context,
+                onSave: _saveReservation,
+              );
+              if (result == true && mounted) {
+                Navigator.of(context).pop();
+              }
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,7 +315,10 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                             child: Text(client.nombreCompleto, style: GoogleFonts.montserrat(fontSize: 14)),
                           );
                         }).toList(),
-                        onChanged: (value) => setState(() => _selectedClientId = value),
+                        onChanged: (value) {
+                          setState(() => _selectedClientId = value);
+                          _markAsChanged();
+                        },
                         validator: (value) => value == null ? 'Selecciona un cliente' : null,
                       ),
                     ],
@@ -469,6 +502,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                 ],
               ),
             ),
+      ),
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
 import 'package:aquatour/services/api_service.dart';
 import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/widgets/unsaved_changes_dialog.dart';
 
 /// Modelo de datos para representar un cliente
 class ClientModel {
@@ -130,6 +131,9 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
   List<Map<String, dynamic>> _contactosDisponibles = [];
   bool _isLoadingContacts = false;
   
+  // Control de cambios sin guardar
+  bool _hasUnsavedChanges = false;
+  
   // Lista de opciones para los selectores
   final List<String> _estadosCiviles = [
     'Soltero/a',
@@ -194,6 +198,24 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
     
     // Cargar contactos disponibles
     _loadContacts();
+    
+    // Agregar listeners para detectar cambios
+    _nombresController.addListener(_markAsChanged);
+    _apellidosController.addListener(_markAsChanged);
+    _emailController.addListener(_markAsChanged);
+    _telefonoController.addListener(_markAsChanged);
+    _documentoController.addListener(_markAsChanged);
+    _nacionalidadController.addListener(_markAsChanged);
+    _pasaporteController.addListener(_markAsChanged);
+    _preferenciasViajeController.addListener(_markAsChanged);
+  }
+  
+  void _markAsChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = true;
+      });
+    }
   }
   
   Future<void> _loadContacts() async {
@@ -278,6 +300,11 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
 
       // Guardar el cliente usando la función proporcionada por el padre
       await widget.onSave(client);
+      
+      // Resetear el flag de cambios sin guardar
+      setState(() {
+        _hasUnsavedChanges = false;
+      });
     } catch (e) {
       // Cerrar el diálogo de carga si hay un error
       if (mounted) {
@@ -296,7 +323,10 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ModuleScaffold(
+    return UnsavedChangesHandler(
+      hasUnsavedChanges: _hasUnsavedChanges,
+      onSave: _submit,
+      child: ModuleScaffold(
       title: widget.clientData == null ? 'Nuevo Cliente' : 'Editar Cliente',
       subtitle: 'Gestión de clientes',
       icon: Icons.person_outline,
@@ -384,6 +414,7 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
                   if (value != null) {
                     setState(() {
                       _estadoCivil = value;
+                      _hasUnsavedChanges = true;
                     });
                   }
                 },
@@ -415,6 +446,7 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
                   if (value != null) {
                     setState(() {
                       _satisfaccion = value;
+                      _hasUnsavedChanges = true;
                     });
                   }
                 },
@@ -423,6 +455,7 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -588,7 +621,10 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
                   value: 'contacto',
                   groupValue: _tipoOrigen,
                   onChanged: (value) {
-                    setState(() => _tipoOrigen = value!);
+                    setState(() {
+                      _tipoOrigen = value!;
+                      _hasUnsavedChanges = true;
+                    });
                   },
                   activeColor: const Color(0xFF3D1F6E),
                 ),
@@ -599,7 +635,10 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
                   value: 'fuente_directa',
                   groupValue: _tipoOrigen,
                   onChanged: (value) {
-                    setState(() => _tipoOrigen = value!);
+                    setState(() {
+                      _tipoOrigen = value!;
+                      _hasUnsavedChanges = true;
+                    });
                   },
                   activeColor: const Color(0xFF3D1F6E),
                 ),
@@ -654,7 +693,10 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
                   );
                 }).toList(),
                 onChanged: (value) {
-                  setState(() => _idContactoSeleccionado = value);
+                  setState(() {
+                    _idContactoSeleccionado = value;
+                    _hasUnsavedChanges = true;
+                  });
                 },
               ),
           ] else ...[
@@ -704,7 +746,10 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
               }).toList(),
               onChanged: (value) {
                 if (value != null) {
-                  setState(() => _fuenteDirecta = value);
+                  setState(() {
+                    _fuenteDirecta = value;
+                    _hasUnsavedChanges = true;
+                  });
                 }
               },
             ),

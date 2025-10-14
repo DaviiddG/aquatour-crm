@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/provider.dart';
+import '../models/contact.dart';
 import '../services/storage_service.dart';
 import '../widgets/unsaved_changes_dialog.dart';
 
-class ProviderEditScreen extends StatefulWidget {
-  final Provider? provider;
+class ContactEditScreen extends StatefulWidget {
+  final Contact? contact;
 
-  const ProviderEditScreen({super.key, this.provider});
+  const ContactEditScreen({super.key, this.contact});
 
   @override
-  State<ProviderEditScreen> createState() => _ProviderEditScreenState();
+  State<ContactEditScreen> createState() => _ContactEditScreenState();
 }
 
-class _ProviderEditScreenState extends State<ProviderEditScreen> {
+class _ContactEditScreenState extends State<ContactEditScreen> {
   final _formKey = GlobalKey<FormState>();
   final StorageService _storageService = StorageService();
 
-  late TextEditingController _nombreController;
-  late TextEditingController _tipoController;
-  late TextEditingController _telefonoController;
-  late TextEditingController _correoController;
-  ProviderStatus _estado = ProviderStatus.activo;
+  late TextEditingController _nameController;
+  late TextEditingController _emailController;
+  late TextEditingController _phoneController;
+  late TextEditingController _companyController;
 
   bool _isSaving = false;
   bool _hasUnsavedChanges = false;
@@ -29,19 +29,18 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
   @override
   void initState() {
     super.initState();
-    _nombreController = TextEditingController(text: widget.provider?.nombre ?? '');
-    _tipoController = TextEditingController(text: widget.provider?.tipoProveedor ?? '');
-    _telefonoController = TextEditingController(text: widget.provider?.telefono ?? '');
-    _correoController = TextEditingController(text: widget.provider?.correo ?? '');
-    _estado = widget.provider?.estado ?? ProviderStatus.activo;
+    _nameController = TextEditingController(text: widget.contact?.name ?? '');
+    _emailController = TextEditingController(text: widget.contact?.email ?? '');
+    _phoneController = TextEditingController(text: widget.contact?.phone ?? '');
+    _companyController = TextEditingController(text: widget.contact?.company ?? '');
     
     // Agregar listeners
-    _nombreController.addListener(_markAsChanged);
-    _tipoController.addListener(_markAsChanged);
-    _telefonoController.addListener(_markAsChanged);
-    _correoController.addListener(_markAsChanged);
+    _nameController.addListener(_markAsChanged);
+    _emailController.addListener(_markAsChanged);
+    _phoneController.addListener(_markAsChanged);
+    _companyController.addListener(_markAsChanged);
   }
-
+  
   void _markAsChanged() {
     if (!_hasUnsavedChanges) {
       setState(() {
@@ -52,40 +51,41 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
 
   @override
   void dispose() {
-    _nombreController.removeListener(_markAsChanged);
-    _tipoController.removeListener(_markAsChanged);
-    _telefonoController.removeListener(_markAsChanged);
-    _correoController.removeListener(_markAsChanged);
-    _nombreController.dispose();
-    _tipoController.dispose();
-    _telefonoController.dispose();
-    _correoController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _companyController.dispose();
     super.dispose();
   }
 
-  Future<void> _saveProvider() async {
+  Future<void> _saveContact() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
 
     try {
-      final provider = Provider(
-        id: widget.provider?.id,
-        nombre: _nombreController.text.trim(),
-        tipoProveedor: _tipoController.text.trim(),
-        telefono: _telefonoController.text.trim(),
-        correo: _correoController.text.trim(),
-        estado: _estado,
+      final contact = Contact(
+        id: widget.contact?.id,
+        name: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
+        company: _companyController.text.trim(),
+        createdAt: widget.contact?.createdAt ?? DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
-      await _storageService.saveProvider(provider);
+      if (widget.contact == null) {
+        await _storageService.insertContact(contact);
+      } else {
+        await _storageService.updateContact(contact);
+      }
       
       setState(() => _hasUnsavedChanges = false);
 
       if (mounted) {
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Proveedor guardado exitosamente'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Contacto guardado exitosamente'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
@@ -100,11 +100,11 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.provider != null;
+    final isEditing = widget.contact != null;
 
     return UnsavedChangesHandler(
       hasUnsavedChanges: _hasUnsavedChanges,
-      onSave: _saveProvider,
+      onSave: _saveContact,
       child: Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -114,7 +114,7 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
             if (_hasUnsavedChanges) {
               final result = await showUnsavedChangesDialog(
                 context,
-                onSave: _saveProvider,
+                onSave: _saveContact,
               );
               if (result == true && mounted) {
                 Navigator.of(context).pop();
@@ -128,17 +128,21 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor',
+              isEditing ? 'Editar Contacto' : 'Nuevo Contacto',
               style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 18, color: const Color(0xFF1F1F1F)),
             ),
             Text(
-              'Gestión de proveedores',
-              style: GoogleFonts.montserrat(fontSize: 12, color: const Color(0xFF6F6F6F)),
+              'Gestión de contactos y prospectos',
+              style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600]),
             ),
           ],
         ),
         backgroundColor: Colors.white,
         elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey[200], height: 1),
+        ),
       ),
       body: Form(
         key: _formKey,
@@ -146,41 +150,41 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             _buildSection(
-              title: 'Información del Proveedor',
+              title: 'Información Personal',
               children: [
                 TextFormField(
-                  controller: _nombreController,
+                  controller: _nameController,
                   decoration: InputDecoration(
-                    labelText: 'Nombre del proveedor *',
+                    labelText: 'Nombre completo *',
                     labelStyle: GoogleFonts.montserrat(fontSize: 13),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    prefixIcon: const Icon(Icons.business, size: 20),
+                    prefixIcon: const Icon(Icons.person, size: 20),
                   ),
-                  validator: (value) => value == null || value.isEmpty ? 'Campo obligatorio' : null,
+                  style: GoogleFonts.montserrat(fontSize: 14),
+                  validator: (value) => value?.isEmpty ?? true ? 'El nombre es obligatorio' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
-                  controller: _tipoController,
+                  controller: _emailController,
                   decoration: InputDecoration(
-                    labelText: 'Tipo de proveedor *',
+                    labelText: 'Email *',
                     labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                    hintText: 'Ej: Hospedaje, Transporte, Actividades',
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    prefixIcon: const Icon(Icons.category, size: 20),
+                    prefixIcon: const Icon(Icons.email, size: 20),
                   ),
-                  validator: (value) => value == null || value.isEmpty ? 'Campo obligatorio' : null,
+                  style: GoogleFonts.montserrat(fontSize: 14),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value?.isEmpty ?? true) return 'El email es obligatorio';
+                    if (!value!.contains('@')) return 'Email inválido';
+                    return null;
+                  },
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildSection(
-              title: 'Información de Contacto',
-              children: [
+                const SizedBox(height: 16),
                 TextFormField(
-                  controller: _telefonoController,
-                  keyboardType: TextInputType.phone,
+                  controller: _phoneController,
                   decoration: InputDecoration(
                     labelText: 'Teléfono *',
                     labelStyle: GoogleFonts.montserrat(fontSize: 13),
@@ -188,50 +192,31 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     prefixIcon: const Icon(Icons.phone, size: 20),
                   ),
-                  validator: (value) => value == null || value.isEmpty ? 'Campo obligatorio' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _correoController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Correo electrónico *',
-                    labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    prefixIcon: const Icon(Icons.email, size: 20),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Campo obligatorio';
-                    if (!value.contains('@')) return 'Correo inválido';
-                    return null;
-                  },
+                  style: GoogleFonts.montserrat(fontSize: 14),
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(15),
+                  ],
+                  validator: (value) => value?.isEmpty ?? true ? 'El teléfono es obligatorio' : null,
                 ),
               ],
             ),
             const SizedBox(height: 24),
             _buildSection(
-              title: 'Estado',
+              title: 'Información Profesional',
               children: [
-                DropdownButtonFormField<ProviderStatus>(
-                  value: _estado,
+                TextFormField(
+                  controller: _companyController,
                   decoration: InputDecoration(
-                    labelText: 'Estado del proveedor',
+                    labelText: 'Empresa *',
                     labelStyle: GoogleFonts.montserrat(fontSize: 13),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    prefixIcon: const Icon(Icons.toggle_on, size: 20),
+                    prefixIcon: const Icon(Icons.business, size: 20),
                   ),
-                  items: ProviderStatus.values.map((status) {
-                    return DropdownMenuItem(
-                      value: status,
-                      child: Text(status.displayName, style: GoogleFonts.montserrat(fontSize: 14)),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() => _estado = value!);
-                    _markAsChanged();
-                  },
+                  style: GoogleFonts.montserrat(fontSize: 14),
+                  validator: (value) => value?.isEmpty ?? true ? 'La empresa es obligatoria' : null,
                 ),
               ],
             ),
@@ -239,7 +224,7 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
             Align(
               alignment: Alignment.centerRight,
               child: ElevatedButton.icon(
-                onPressed: _isSaving ? null : _saveProvider,
+                onPressed: _isSaving ? null : _saveContact,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF3D1F6E),
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),

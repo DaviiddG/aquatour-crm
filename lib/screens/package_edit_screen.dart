@@ -6,6 +6,7 @@ import '../models/tour_package.dart';
 import '../models/destination.dart';
 import '../services/storage_service.dart';
 import '../utils/currency_input_formatter.dart';
+import '../widgets/unsaved_changes_dialog.dart';
 
 class PackageEditScreen extends StatefulWidget {
   final TourPackage? package;
@@ -32,6 +33,7 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
 
   bool _isSaving = false;
   bool _isLoading = true;
+  bool _hasUnsavedChanges = false;
 
   @override
   void initState() {
@@ -53,7 +55,23 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
     _cupoController = TextEditingController(text: widget.package?.cupoMaximo.toString() ?? '');
     _serviciosController = TextEditingController(text: widget.package?.serviciosIncluidos ?? '');
     
+    // Agregar listeners para detectar cambios
+    _nombreController.addListener(_markAsChanged);
+    _descripcionController.addListener(_markAsChanged);
+    _precioController.addListener(_markAsChanged);
+    _duracionController.addListener(_markAsChanged);
+    _cupoController.addListener(_markAsChanged);
+    _serviciosController.addListener(_markAsChanged);
+    
     _loadDestinations();
+  }
+  
+  void _markAsChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = true;
+      });
+    }
   }
 
   Future<void> _loadDestinations() async {
@@ -116,6 +134,11 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
       );
 
       await _storageService.savePackage(package);
+      
+      // Resetear el flag de cambios sin guardar
+      setState(() {
+        _hasUnsavedChanges = false;
+      });
 
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -137,12 +160,27 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
   Widget build(BuildContext context) {
     final isEditing = widget.package != null;
 
-    return Scaffold(
+    return UnsavedChangesHandler(
+      hasUnsavedChanges: _hasUnsavedChanges,
+      onSave: _savePackage,
+      child: Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF3D1F6E)),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            if (_hasUnsavedChanges) {
+              final result = await showUnsavedChangesDialog(
+                context,
+                onSave: _savePackage,
+              );
+              if (result == true && mounted) {
+                Navigator.of(context).pop();
+              }
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,6 +269,7 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
                                     }
                                     debugPrint('📋 Destinos seleccionados ahora: $_selectedDestinations');
                                   });
+                                  _markAsChanged();
                                 },
                                 activeColor: const Color(0xFF3D1F6E),
                               );
@@ -357,6 +396,7 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
                 ],
               ),
             ),
+      ),
     );
   }
 

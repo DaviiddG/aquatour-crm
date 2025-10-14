@@ -1191,10 +1191,28 @@ class _ClientCardState extends State<_ClientCard> {
                           '${widget.client['nombres'] ?? 'N/A'} ${widget.client['apellidos'] ?? ''}',
                           style: GoogleFonts.montserrat(fontWeight: FontWeight.w600, fontSize: 15),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(
                           widget.client['email'] ?? 'Sin email',
                           style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Icon(Icons.phone, size: 12, color: Colors.grey[500]),
+                            const SizedBox(width: 4),
+                            Text(
+                              widget.client['telefono'] ?? 'Sin teléfono',
+                              style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                            const SizedBox(width: 12),
+                            Icon(Icons.flag, size: 12, color: Colors.grey[500]),
+                            const SizedBox(width: 4),
+                            Text(
+                              widget.client['nacionalidad'] ?? 'Sin nacionalidad',
+                              style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          ],
                         ),
                       ],
                     ),
