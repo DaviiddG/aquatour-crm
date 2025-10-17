@@ -43,8 +43,8 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
             gradient: LinearGradient(
               colors: _isHovering
                   ? [
-                      const Color(0xFF3D1F6E).withOpacity(0.10),
-                      const Color(0xFF4C39A6).withOpacity(0.06),
+                      const Color(0xFF3D1F6E).withValues(alpha: 0.10),
+                      const Color(0xFF4C39A6).withValues(alpha: 0.06),
                     ]
                   : [
                       Colors.white,
@@ -55,7 +55,7 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(_isHovering ? 0.10 : 0.04),
+                color: Colors.black.withValues(alpha: _isHovering ? 0.10 : 0.04),
                 blurRadius: _isHovering ? 14 : 10,
                 spreadRadius: 0,
                 offset: const Offset(0, 8),
@@ -63,8 +63,8 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
             ],
             border: Border.all(
               color: _isHovering
-                  ? const Color(0xFFfdb913).withOpacity(0.55)
-                  : Colors.grey.withOpacity(0.18),
+                  ? const Color(0xFFfdb913).withValues(alpha: 0.55)
+                  : Colors.grey.withValues(alpha: 0.18),
             ),
           ),
           child: Material(
@@ -84,7 +84,7 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
                           height: 40,
                           width: 40,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF3D1F6E).withOpacity(0.08),
+                            color: const Color(0xFF3D1F6E).withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
@@ -117,7 +117,7 @@ class _DashboardOptionCardState extends State<DashboardOptionCard> {
                                         vertical: 3,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFfdb913).withOpacity(0.18),
+                                        color: const Color(0xFFfdb913).withValues(alpha: 0.18),
                                         borderRadius: BorderRadius.circular(999),
                                       ),
                                       child: Text(

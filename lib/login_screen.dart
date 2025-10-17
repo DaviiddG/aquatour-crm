@@ -63,9 +63,21 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      
+      String errorMessage = 'Error iniciando sesión';
+      
+      // Detectar error de usuario inactivo
+      if (e.toString().contains('Usuario inactivo') || e.toString().contains('403')) {
+        errorMessage = 'Tu cuenta ha sido desactivada. Contacta al administrador.';
+      } else if (e.toString().contains('Credenciales incorrectas') || e.toString().contains('401')) {
+        errorMessage = 'Credenciales incorrectas. Verifica tu email y contraseña.';
+      } else {
+        errorMessage = 'Error iniciando sesión: $e';
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error iniciando sesión: $e'),
+          content: Text(errorMessage),
           backgroundColor: Colors.red,
         ),
       );

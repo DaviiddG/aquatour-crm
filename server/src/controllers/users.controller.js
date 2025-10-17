@@ -2,6 +2,8 @@ import {
   findAllUsers,
   findUserById,
   findByEmail,
+  findByDocument,
+  findByPhone,
   createUser,
   updateUser,
   deleteUser,
@@ -42,6 +44,29 @@ export const checkEmail = async (req, res, next) => {
   }
 };
 
+export const checkDocument = async (req, res, next) => {
+  try {
+    const { numDocumento } = req.params;
+    const { exclude } = req.query;
+    const user = await findByDocument(numDocumento, exclude);
+    res.json({ ok: true, exists: Boolean(user), user: user ? { nombre: user.nombre, apellido: user.apellido } : null });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const checkPhone = async (req, res, next) => {
+  try {
+    const { telefono } = req.params;
+    const { exclude } = req.query;
+    const cleanPhone = String(telefono).replace(/[^0-9]/g, '');
+    const user = await findByPhone(cleanPhone, exclude);
+    res.json({ ok: true, exists: Boolean(user), user: user ? { nombre: user.nombre, apellido: user.apellido } : null });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createUserController = async (req, res, next) => {
   try {
     const existing = await findByEmail(req.body.email);
@@ -67,6 +92,9 @@ export const updateUserController = async (req, res, next) => {
 
     res.json({ ok: true, user: updatedUser });
   } catch (error) {
+    if (error.status === 409) {
+      return res.status(409).json({ ok: false, error: error.message });
+    }
     next(error);
   }
 };

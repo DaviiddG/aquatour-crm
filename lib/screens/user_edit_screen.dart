@@ -36,6 +36,10 @@ class _UserEditScreenState extends State<UserEditScreen> {
 
   bool _isSaving = false;
   bool _hasUnsavedChanges = false;
+  String? _documentError;
+  bool _isCheckingDocument = false;
+  String? _phoneError;
+  bool _isCheckingPhone = false;
 
   @override
   void initState() {
@@ -60,8 +64,8 @@ class _UserEditScreenState extends State<UserEditScreen> {
     _emailController.addListener(_markAsChanged);
     _nombreController.addListener(_markAsChanged);
     _apellidoController.addListener(_markAsChanged);
-    _numDocumentoController.addListener(_markAsChanged);
-    _telefonoController.addListener(_markAsChanged);
+    _numDocumentoController.addListener(_onDocumentChanged);
+    _telefonoController.addListener(_onPhoneChanged);
     _direccionController.addListener(_markAsChanged);
     _ciudadController.addListener(_markAsChanged);
     _paisController.addListener(_markAsChanged);
@@ -71,6 +75,102 @@ class _UserEditScreenState extends State<UserEditScreen> {
   void _markAsChanged() {
     if (!_hasUnsavedChanges) {
       setState(() => _hasUnsavedChanges = true);
+    }
+  }
+
+  void _onDocumentChanged() {
+    _markAsChanged();
+    _checkDocumentExists();
+  }
+
+  Future<void> _checkDocumentExists() async {
+    final doc = _numDocumentoController.text.trim();
+    if (doc.isEmpty) {
+      setState(() {
+        _documentError = null;
+        _isCheckingDocument = false;
+      });
+      return;
+    }
+
+    setState(() => _isCheckingDocument = true);
+
+    try {
+      final result = await _storageService.documentExists(
+        doc,
+        excludeUserId: widget.user?.idUsuario,
+      );
+
+      if (mounted) {
+        setState(() {
+          if (result['exists'] == true) {
+            final user = result['user'];
+            if (user != null) {
+              _documentError = 'Este documento ya está registrado para ${user['nombre']} ${user['apellido']}';
+            } else {
+              _documentError = 'Este documento ya está registrado en el sistema';
+            }
+          } else {
+            _documentError = null;
+          }
+          _isCheckingDocument = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _documentError = null;
+          _isCheckingDocument = false;
+        });
+      }
+    }
+  }
+
+  void _onPhoneChanged() {
+    _markAsChanged();
+    _checkPhoneExists();
+  }
+
+  Future<void> _checkPhoneExists() async {
+    final phone = _telefonoController.text.trim();
+    if (phone.isEmpty) {
+      setState(() {
+        _phoneError = null;
+        _isCheckingPhone = false;
+      });
+      return;
+    }
+
+    setState(() => _isCheckingPhone = true);
+
+    try {
+      final result = await _storageService.phoneExists(
+        phone,
+        excludeUserId: widget.user?.idUsuario,
+      );
+
+      if (mounted) {
+        setState(() {
+          if (result['exists'] == true) {
+            final user = result['user'];
+            if (user != null) {
+              _phoneError = 'Este teléfono ya está registrado para ${user['nombre']} ${user['apellido']}';
+            } else {
+              _phoneError = 'Este teléfono ya está registrado en el sistema';
+            }
+          } else {
+            _phoneError = null;
+          }
+          _isCheckingPhone = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _phoneError = null;
+          _isCheckingPhone = false;
+        });
+      }
     }
   }
 
@@ -90,6 +190,28 @@ class _UserEditScreenState extends State<UserEditScreen> {
 
   Future<void> _saveUser() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validar que no haya error de documento
+    if (_documentError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_documentError!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Validar que no haya error de teléfono
+    if (_phoneError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_phoneError!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSaving = true);
 
@@ -132,8 +254,16 @@ class _UserEditScreenState extends State<UserEditScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = 'Error guardando usuario: $e';
+        if (e.toString().contains('documento ya está registrado')) {
+          errorMessage = 'El número de documento ya está registrado en el sistema';
+        } else if (e.toString().contains('email ya está registrado')) {
+          errorMessage = 'El email ya está registrado en el sistema';
+        } else if (e.toString().contains('teléfono ya está registrado')) {
+          errorMessage = 'El número de teléfono ya está registrado en el sistema';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error guardando usuario: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -345,39 +475,135 @@ class _UserEditScreenState extends State<UserEditScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         flex: 2,
-                        child: TextFormField(
-                          controller: _numDocumentoController,
-                          decoration: InputDecoration(
-                            labelText: 'Número de Documento *',
-                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            prefixIcon: const Icon(Icons.badge, size: 20),
-                          ),
-                          style: GoogleFonts.montserrat(fontSize: 14),
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          validator: (value) => value?.isEmpty ?? true ? 'El documento es obligatorio' : null,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              controller: _numDocumentoController,
+                              decoration: InputDecoration(
+                                labelText: 'Número de Documento *',
+                                labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(
+                                    color: _documentError != null ? Colors.red : Colors.grey,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(
+                                    color: _documentError != null ? Colors.red : Colors.grey.shade300,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(
+                                    color: _documentError != null ? Colors.red : const Color(0xFF3D1F6E),
+                                    width: 2,
+                                  ),
+                                ),
+                                prefixIcon: const Icon(Icons.badge, size: 20),
+                                suffixIcon: _isCheckingDocument
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(12),
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      )
+                                    : _documentError != null
+                                        ? const Icon(Icons.error, color: Colors.red, size: 20)
+                                        : _numDocumentoController.text.isNotEmpty
+                                            ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
+                                            : null,
+                              ),
+                              style: GoogleFonts.montserrat(fontSize: 14),
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              validator: (value) => value?.isEmpty ?? true ? 'El documento es obligatorio' : null,
+                            ),
+                            if (_documentError != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                _documentError!,
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 12,
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _telefonoController,
-                    decoration: InputDecoration(
-                      labelText: 'Teléfono *',
-                      labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      prefixIcon: const Icon(Icons.phone, size: 20),
-                    ),
-                    style: GoogleFonts.montserrat(fontSize: 14),
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(15),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: _telefonoController,
+                        decoration: InputDecoration(
+                          labelText: 'Teléfono *',
+                          labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: _phoneError != null ? Colors.red : Colors.grey,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: _phoneError != null ? Colors.red : Colors.grey.shade300,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: _phoneError != null ? Colors.red : const Color(0xFF3D1F6E),
+                              width: 2,
+                            ),
+                          ),
+                          prefixIcon: const Icon(Icons.phone, size: 20),
+                          suffixIcon: _isCheckingPhone
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : _phoneError != null
+                                  ? const Icon(Icons.error, color: Colors.red, size: 20)
+                                  : _telefonoController.text.isNotEmpty
+                                      ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
+                                      : null,
+                        ),
+                        style: GoogleFonts.montserrat(fontSize: 14),
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(15),
+                        ],
+                        validator: (value) => value?.isEmpty ?? true ? 'El teléfono es obligatorio' : null,
+                      ),
+                      if (_phoneError != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _phoneError!,
+                          style: GoogleFonts.montserrat(
+                            fontSize: 12,
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ],
-                    validator: (value) => value?.isEmpty ?? true ? 'El teléfono es obligatorio' : null,
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(

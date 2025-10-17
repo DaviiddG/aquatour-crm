@@ -52,6 +52,7 @@ const baseSelect = `
     u.ciudad_residencia,
     u.pais_residencia,
     u.contrasena,
+    u.activo,
     u.fecha_registro AS created_at,
     u.fecha_registro AS updated_at
   FROM Usuario u
@@ -76,7 +77,7 @@ const mapDbUser = (row) => {
     ciudad_residencia: row.ciudad_residencia,
     pais_residencia: row.pais_residencia,
     contrasena: row.contrasena,
-    activo: true,
+    activo: Boolean(row.activo),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -94,6 +95,42 @@ const resolveRoleId = async (roleApp) => {
 export const findByEmail = async (email, excludeId) => {
   const params = [email];
   let whereClause = 'u.correo = ?';
+
+  if (excludeId) {
+    whereClause += ' AND u.id_usuario <> ?';
+    params.push(excludeId);
+  }
+
+  const [rows] = await query(
+    `${baseSelect}
+     WHERE ${whereClause}
+     LIMIT 1`,
+    params
+  );
+  return mapDbUser(rows[0]) ?? null;
+};
+
+export const findByDocument = async (numDocumento, excludeId) => {
+  const params = [numDocumento];
+  let whereClause = 'u.num_documento = ?';
+
+  if (excludeId) {
+    whereClause += ' AND u.id_usuario <> ?';
+    params.push(excludeId);
+  }
+
+  const [rows] = await query(
+    `${baseSelect}
+     WHERE ${whereClause}
+     LIMIT 1`,
+    params
+  );
+  return mapDbUser(rows[0]) ?? null;
+};
+
+export const findByPhone = async (telefono, excludeId) => {
+  const params = [telefono];
+  let whereClause = 'u.telefono = ?';
 
   if (excludeId) {
     whereClause += ' AND u.id_usuario <> ?';
@@ -149,10 +186,40 @@ const mapAppUserToDbFields = async (userData) => {
     pais_residencia: userData.pais_residencia,
     id_rol: roleId,
     lugar_nacimiento: userData.lugar_nacimiento ?? null,
+    activo: userData.activo !== undefined ? (userData.activo ? 1 : 0) : 1,
   };
 };
 
 export const createUser = async (userData) => {
+  // Validar documento duplicado
+  const userWithDoc = await findByDocument(userData.num_documento);
+  if (userWithDoc) {
+    const error = new Error('El número de documento ya está registrado en el sistema');
+    error.status = 409;
+    throw error;
+  }
+
+  // Validar email duplicado
+  const userWithEmail = await findByEmail(userData.email);
+  if (userWithEmail) {
+    const error = new Error('El email ya está registrado en el sistema');
+    error.status = 409;
+    throw error;
+  }
+
+  // Validar teléfono duplicado
+  if (userData.telefono) {
+    const cleanPhone = String(userData.telefono).replace(/[^0-9]/g, '');
+    if (cleanPhone) {
+      const userWithPhone = await findByPhone(cleanPhone);
+      if (userWithPhone) {
+        const error = new Error('El número de teléfono ya está registrado en el sistema');
+        error.status = 409;
+        throw error;
+      }
+    }
+  }
+
   const connection = await getConnection();
 
   try {
@@ -204,6 +271,39 @@ export const createUser = async (userData) => {
 export const updateUser = async (idUsuario, userData) => {
   const existingUser = await findUserById(idUsuario);
   if (!existingUser) return null;
+
+  // Validar documento duplicado
+  if (userData.num_documento) {
+    const userWithDoc = await findByDocument(userData.num_documento, idUsuario);
+    if (userWithDoc) {
+      const error = new Error('El número de documento ya está registrado en el sistema');
+      error.status = 409;
+      throw error;
+    }
+  }
+
+  // Validar email duplicado
+  if (userData.email) {
+    const userWithEmail = await findByEmail(userData.email, idUsuario);
+    if (userWithEmail) {
+      const error = new Error('El email ya está registrado en el sistema');
+      error.status = 409;
+      throw error;
+    }
+  }
+
+  // Validar teléfono duplicado
+  if (userData.telefono) {
+    const cleanPhone = String(userData.telefono).replace(/[^0-9]/g, '');
+    if (cleanPhone) {
+      const userWithPhone = await findByPhone(cleanPhone, idUsuario);
+      if (userWithPhone) {
+        const error = new Error('El número de teléfono ya está registrado en el sistema');
+        error.status = 409;
+        throw error;
+      }
+    }
+  }
 
   const connection = await getConnection();
 
@@ -269,11 +369,8 @@ export const deleteUser = async (idUsuario) => {
   const user = await findUserById(idUsuario);
   if (!user) return false;
 
-  if (user.rol === 'superadministrador') {
-    const error = new Error('No se permite eliminar un superadministrador');
-    error.status = 403;
-    throw error;
-  }
+  // Permitir eliminación de superadministradores
+  // (la validación de permisos se hace en el frontend/middleware)
 
   const connection = await getConnection();
 

@@ -251,6 +251,22 @@ class ApiService {
     return response;
   }
 
+  // Verificar si documento existe
+  Future<Map<String, dynamic>> checkDocumentExists(String numDocumento, {String? token, int? excludeUserId}) async {
+    final sanitizedDoc = Uri.encodeComponent(numDocumento);
+    final query = excludeUserId != null ? '?exclude=$excludeUserId' : '';
+    final response = await _get('/users/check-document/$sanitizedDoc$query', token: token);
+    return response;
+  }
+
+  // Verificar si teléfono existe
+  Future<Map<String, dynamic>> checkPhoneExists(String telefono, {String? token, int? excludeUserId}) async {
+    final sanitizedPhone = Uri.encodeComponent(telefono);
+    final query = excludeUserId != null ? '?exclude=$excludeUserId' : '';
+    final response = await _get('/users/check-phone/$sanitizedPhone$query', token: token);
+    return response;
+  }
+
   // ===== CONTACTOS =====
 
   // Obtener todos los contactos

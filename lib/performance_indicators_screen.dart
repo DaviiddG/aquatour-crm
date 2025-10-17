@@ -497,51 +497,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     final sales = _metrics['sales'] ?? {};
     final completed = (sales['completed'] ?? 0).toDouble();
     final inProcess = (sales['inProcess'] ?? 0).toDouble();
-
-    final sections = <PieChartSectionData>[];
-    
-    if (completed > 0) {
-      sections.add(PieChartSectionData(
-        value: completed,
-        title: '${completed.toInt()}\nCompletadas',
-        color: const Color(0xFFfdb913),
-        radius: 60,
-        titleStyle: GoogleFonts.montserrat(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-      ));
-    }
-    
-    if (inProcess > 0) {
-      sections.add(PieChartSectionData(
-        value: inProcess,
-        title: '${inProcess.toInt()}\nEn Proceso',
-        color: Colors.grey.shade300,
-        radius: 60,
-        titleStyle: GoogleFonts.montserrat(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.black87,
-        ),
-      ));
-    }
-
-    // Si no hay datos, mostrar un placeholder
-    if (sections.isEmpty) {
-      sections.add(PieChartSectionData(
-        value: 1,
-        title: 'Sin datos',
-        color: Colors.grey.shade200,
-        radius: 60,
-        titleStyle: GoogleFonts.montserrat(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.grey,
-        ),
-      ));
-    }
+    final total = completed + inProcess;
 
     return Card(
       elevation: 3,
@@ -564,20 +520,98 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
-              child: PieChart(
-                PieChartData(
-                  sections: sections,
-                  sectionsSpace: 2,
-                  centerSpaceRadius: 40,
-                ),
-              ),
+              child: total == 0
+                  ? Center(
+                      child: Text(
+                        'Sin ventas',
+                        style: GoogleFonts.montserrat(color: Colors.grey),
+                      ),
+                    )
+                  : BarChart(
+                      BarChartData(
+                        alignment: BarChartAlignment.spaceAround,
+                        maxY: (total * 1.2).ceilToDouble(),
+                        barTouchData: BarTouchData(
+                          enabled: true,
+                          touchTooltipData: BarTouchTooltipData(
+                            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                              return BarTooltipItem(
+                                '${rod.toY.toInt()}',
+                                GoogleFonts.montserrat(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        titlesData: FlTitlesData(
+                          show: true,
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              getTitlesWidget: (value, meta) {
+                                switch (value.toInt()) {
+                                  case 0:
+                                    return Text('Completadas', style: GoogleFonts.montserrat(fontSize: 11));
+                                  case 1:
+                                    return Text('En Proceso', style: GoogleFonts.montserrat(fontSize: 11));
+                                  default:
+                                    return const Text('');
+                                }
+                              },
+                            ),
+                          ),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 40,
+                              getTitlesWidget: (value, meta) {
+                                return Text(
+                                  value.toInt().toString(),
+                                  style: GoogleFonts.montserrat(fontSize: 10),
+                                );
+                              },
+                            ),
+                          ),
+                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        gridData: const FlGridData(show: false),
+                        barGroups: [
+                          BarChartGroupData(
+                            x: 0,
+                            barRods: [
+                              BarChartRodData(
+                                toY: completed,
+                                color: const Color(0xFFfdb913),
+                                width: 40,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                              ),
+                            ],
+                          ),
+                          BarChartGroupData(
+                            x: 1,
+                            barRods: [
+                              BarChartRodData(
+                                toY: inProcess,
+                                color: const Color(0xFF4C39A6),
+                                width: 40,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
             ),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildLegendItem('Completadas', const Color(0xFFfdb913)),
-                _buildLegendItem('En Proceso', Colors.grey.shade300),
+                _buildLegendItem('En Proceso', const Color(0xFF4C39A6)),
               ],
             ),
           ],
@@ -598,11 +632,11 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     if (paid > 0) {
       sections.add(PieChartSectionData(
         value: paid,
-        title: '${paid.toInt()}\nPagadas',
-        color: Colors.green,
-        radius: 60,
+        title: '${paid.toInt()}',
+        color: const Color(0xFF4CAF50),
+        radius: 65,
         titleStyle: GoogleFonts.montserrat(
-          fontSize: 11,
+          fontSize: 14,
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
@@ -612,11 +646,11 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     if (inProcess > 0) {
       sections.add(PieChartSectionData(
         value: inProcess,
-        title: '${inProcess.toInt()}\nEn Proceso',
-        color: Colors.blue,
-        radius: 60,
+        title: '${inProcess.toInt()}',
+        color: const Color(0xFF2196F3),
+        radius: 65,
         titleStyle: GoogleFonts.montserrat(
-          fontSize: 11,
+          fontSize: 14,
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
@@ -626,11 +660,11 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     if (pending > 0) {
       sections.add(PieChartSectionData(
         value: pending,
-        title: '${pending.toInt()}\nPendientes',
-        color: Colors.orange,
-        radius: 60,
+        title: '${pending.toInt()}',
+        color: const Color(0xFFFF9800),
+        radius: 65,
         titleStyle: GoogleFonts.montserrat(
-          fontSize: 11,
+          fontSize: 14,
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
@@ -640,11 +674,11 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     if (cancelled > 0) {
       sections.add(PieChartSectionData(
         value: cancelled,
-        title: '${cancelled.toInt()}\nCanceladas',
-        color: Colors.red,
-        radius: 60,
+        title: '${cancelled.toInt()}',
+        color: const Color(0xFFF44336),
+        radius: 65,
         titleStyle: GoogleFonts.montserrat(
-          fontSize: 11,
+          fontSize: 14,
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
@@ -682,8 +716,9 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                   : PieChart(
                       PieChartData(
                         sections: sections,
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 40,
+                        sectionsSpace: 3,
+                        centerSpaceRadius: 45,
+                        borderData: FlBorderData(show: false),
                       ),
                     ),
             ),
@@ -693,10 +728,10 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               runSpacing: 8,
               alignment: WrapAlignment.center,
               children: [
-                _buildLegendItem('Pagadas', Colors.green),
-                _buildLegendItem('En Proceso', Colors.blue),
-                _buildLegendItem('Pendientes', Colors.orange),
-                _buildLegendItem('Canceladas', Colors.red),
+                _buildLegendItem('Pagadas', const Color(0xFF4CAF50)),
+                _buildLegendItem('En Proceso', const Color(0xFF2196F3)),
+                _buildLegendItem('Pendientes', const Color(0xFFFF9800)),
+                _buildLegendItem('Canceladas', const Color(0xFFF44336)),
               ],
             ),
           ],
@@ -711,6 +746,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     final rejected = (quotes['rejected'] ?? 0).toDouble();
     final pending = (quotes['pending'] ?? 0).toDouble();
     final total = accepted + rejected + pending;
+    final maxValue = [accepted, rejected, pending].reduce((a, b) => a > b ? a : b);
 
     return Card(
       elevation: 3,
@@ -740,49 +776,120 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                         style: GoogleFonts.montserrat(color: Colors.grey),
                       ),
                     )
-                  : PieChart(
-                      PieChartData(
-                        sections: [
-                          if (accepted > 0)
-                            PieChartSectionData(
-                              value: accepted,
-                              title: '${accepted.toInt()}\nAceptadas',
-                              color: Colors.green,
-                              radius: 60,
-                              titleStyle: GoogleFonts.montserrat(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                  : BarChart(
+                      BarChartData(
+                        alignment: BarChartAlignment.spaceAround,
+                        maxY: (maxValue * 1.2).ceilToDouble(),
+                        barTouchData: BarTouchData(
+                          enabled: true,
+                          touchTooltipData: BarTouchTooltipData(
+                            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                              String label = '';
+                              switch (group.x) {
+                                case 0:
+                                  label = 'Aceptadas';
+                                  break;
+                                case 1:
+                                  label = 'Pendientes';
+                                  break;
+                                case 2:
+                                  label = 'Rechazadas';
+                                  break;
+                              }
+                              final percentage = total > 0 ? (rod.toY / total * 100).toStringAsFixed(1) : '0';
+                              return BarTooltipItem(
+                                '$label\n${rod.toY.toInt()} ($percentage%)',
+                                GoogleFonts.montserrat(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        titlesData: FlTitlesData(
+                          show: true,
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              getTitlesWidget: (value, meta) {
+                                switch (value.toInt()) {
+                                  case 0:
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: Text('Aceptadas', style: GoogleFonts.montserrat(fontSize: 11)),
+                                    );
+                                  case 1:
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: Text('Pendientes', style: GoogleFonts.montserrat(fontSize: 11)),
+                                    );
+                                  case 2:
+                                    return Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: Text('Rechazadas', style: GoogleFonts.montserrat(fontSize: 11)),
+                                    );
+                                  default:
+                                    return const Text('');
+                                }
+                              },
                             ),
-                          if (pending > 0)
-                            PieChartSectionData(
-                              value: pending,
-                              title: '${pending.toInt()}\nPendientes',
-                              color: Colors.orange,
-                              radius: 60,
-                              titleStyle: GoogleFonts.montserrat(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                          ),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 40,
+                              getTitlesWidget: (value, meta) {
+                                return Text(
+                                  value.toInt().toString(),
+                                  style: GoogleFonts.montserrat(fontSize: 10),
+                                );
+                              },
                             ),
-                          if (rejected > 0)
-                            PieChartSectionData(
-                              value: rejected,
-                              title: '${rejected.toInt()}\nRechazadas',
-                              color: Colors.red,
-                              radius: 60,
-                              titleStyle: GoogleFonts.montserrat(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                          ),
+                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        gridData: const FlGridData(show: false),
+                        barGroups: [
+                          BarChartGroupData(
+                            x: 0,
+                            barRods: [
+                              BarChartRodData(
+                                toY: accepted,
+                                color: const Color(0xFF4CAF50),
+                                width: 40,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                               ),
-                            ),
+                            ],
+                          ),
+                          BarChartGroupData(
+                            x: 1,
+                            barRods: [
+                              BarChartRodData(
+                                toY: pending,
+                                color: const Color(0xFFFF9800),
+                                width: 40,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                              ),
+                            ],
+                          ),
+                          BarChartGroupData(
+                            x: 2,
+                            barRods: [
+                              BarChartRodData(
+                                toY: rejected,
+                                color: const Color(0xFFF44336),
+                                width: 40,
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                              ),
+                            ],
+                          ),
                         ],
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 40,
                       ),
+                      swapAnimationDuration: const Duration(milliseconds: 250),
                     ),
             ),
             const SizedBox(height: 16),
@@ -791,9 +898,9 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               runSpacing: 8,
               alignment: WrapAlignment.center,
               children: [
-                _buildLegendItem('Aceptadas', Colors.green),
-                _buildLegendItem('Pendientes', Colors.orange),
-                _buildLegendItem('Rechazadas', Colors.red),
+                _buildLegendItem('Aceptadas', const Color(0xFF4CAF50)),
+                _buildLegendItem('Pendientes', const Color(0xFFFF9800)),
+                _buildLegendItem('Rechazadas', const Color(0xFFF44336)),
               ],
             ),
           ],

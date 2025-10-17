@@ -225,7 +225,8 @@ class StorageService {
       return null;
     } catch (e) {
       print('❌ Error en login: $e');
-      return null;
+      // Propagar el error para que el frontend pueda manejarlo
+      rethrow;
     }
   }
 
@@ -338,6 +339,40 @@ class StorageService {
     } catch (e) {
       print('❌ Error verificando email: $e');
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> documentExists(String numDocumento, {int? excludeUserId}) async {
+    try {
+      final response = await _apiService.checkDocumentExists(
+        numDocumento,
+        token: _authToken,
+        excludeUserId: excludeUserId,
+      );
+      return {
+        'exists': response['exists'] ?? false,
+        'user': response['user'],
+      };
+    } catch (e) {
+      print('❌ Error verificando documento: $e');
+      return {'exists': false, 'user': null};
+    }
+  }
+
+  Future<Map<String, dynamic>> phoneExists(String telefono, {int? excludeUserId}) async {
+    try {
+      final response = await _apiService.checkPhoneExists(
+        telefono,
+        token: _authToken,
+        excludeUserId: excludeUserId,
+      );
+      return {
+        'exists': response['exists'] ?? false,
+        'user': response['user'],
+      };
+    } catch (e) {
+      print('❌ Error verificando teléfono: $e');
+      return {'exists': false, 'user': null};
     }
   }
 
