@@ -18,9 +18,12 @@ class ReservationsScreen extends StatefulWidget {
 class _ReservationsScreenState extends State<ReservationsScreen> with WidgetsBindingObserver {
   final StorageService _storageService = StorageService();
   List<Reservation> _reservations = [];
+  Map<int, List<Reservation>> _reservationsByEmployee = {};
+  Map<int, User> _employeesMap = {};
   User? _currentUser;
   bool _isLoading = true;
   bool _canModify = false;
+  Set<int> _expandedEmployees = {};
 
   @override
   void initState() {
@@ -58,6 +61,35 @@ class _ReservationsScreenState extends State<ReservationsScreen> with WidgetsBin
             : await _storageService.getAllReservations();
         
         debugPrint('📋 Reservas cargadas: ${reservations.length}');
+        
+        // Si es admin, agrupar por empleado
+        if (currentUser.rol != UserRole.empleado && reservations.isNotEmpty) {
+          final allUsers = await _storageService.getAllUsers();
+          _employeesMap = {};
+          for (var user in allUsers) {
+            if (user.idUsuario != null) {
+              _employeesMap[user.idUsuario!] = user;
+            }
+          }
+          
+          debugPrint('📊 Empleados cargados: ${_employeesMap.length}');
+          _employeesMap.forEach((id, user) {
+            debugPrint('  - ID: $id, Nombre: ${user.nombreCompleto}');
+          });
+          
+          _reservationsByEmployee = {};
+          for (var reservation in reservations) {
+            final employeeId = reservation.idEmpleado;
+            debugPrint('📋 Reserva ID: ${reservation.id}, idEmpleado: $employeeId, Nombre: ${reservation.empleadoNombreCompleto}');
+            
+            if (!_reservationsByEmployee.containsKey(employeeId)) {
+              _reservationsByEmployee[employeeId] = [];
+            }
+            _reservationsByEmployee[employeeId]!.add(reservation);
+          }
+          
+          // No expandir ninguno por defecto
+        }
         
         if (mounted) {
           setState(() {
@@ -117,7 +149,9 @@ class _ReservationsScreenState extends State<ReservationsScreen> with WidgetsBin
           ? const Center(child: CircularProgressIndicator())
           : _reservations.isEmpty
               ? _buildEmptyState()
-              : _buildReservationsList(),
+              : _currentUser?.rol == UserRole.empleado
+                  ? _buildReservationsList()
+                  : _buildGroupedReservationsList(),
     );
   }
 
@@ -216,20 +250,123 @@ class _ReservationsScreenState extends State<ReservationsScreen> with WidgetsBin
       itemCount: _reservations.length,
       itemBuilder: (context, index) {
         final reservation = _reservations[index];
-        
-        // Los empleados pueden editar TODAS las reservas que se les muestran
-        // (ya que el backend filtra por empleado)
-        // Los admins pueden editar todas las reservas
         final canModifyThisReservation = _canModify || _currentUser?.rol == UserRole.empleado;
-        
-        // Debug: Verificar permisos
-        debugPrint('🔍 Reserva #${reservation.id}: idEmpleado=${reservation.idEmpleado}, currentUserId=${_currentUser?.idUsuario}, rol=${_currentUser?.rol.name}, canModify=$canModifyThisReservation');
         
         return _ReservationCard(
           reservation: reservation,
           canModify: canModifyThisReservation,
           onTap: () => _openReservationForm(reservation: reservation),
           onDelete: () => _deleteReservation(reservation.id!, reservation.idEmpleado),
+        );
+      },
+    );
+  }
+
+  Widget _buildGroupedReservationsList() {
+    final sortedEmployeeIds = _reservationsByEmployee.keys.toList()
+      ..sort((a, b) {
+        // Obtener el nombre del primer reservation de cada empleado
+        final nameA = _reservationsByEmployee[a]?.first.empleadoNombreCompleto ?? '';
+        final nameB = _reservationsByEmployee[b]?.first.empleadoNombreCompleto ?? '';
+        return nameA.compareTo(nameB);
+      });
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: sortedEmployeeIds.length,
+      itemBuilder: (context, index) {
+        final employeeId = sortedEmployeeIds[index];
+        final reservations = _reservationsByEmployee[employeeId] ?? [];
+        final isExpanded = _expandedEmployees.contains(employeeId);
+        // Obtener el nombre del empleado del primer reservation
+        final employeeName = reservations.isNotEmpty ? reservations.first.empleadoNombreCompleto : 'Empleado #$employeeId';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    if (isExpanded) {
+                      _expandedEmployees.remove(employeeId);
+                    } else {
+                      _expandedEmployees.add(employeeId);
+                    }
+                  });
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF4C39A6).withValues(alpha: 0.1),
+                        const Color(0xFF3D1F6E).withValues(alpha: 0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3D1F6E).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          color: Color(0xFF3D1F6E),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              employeeName,
+                              style: GoogleFonts.montserrat(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF1F1F1F),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${reservations.length} ${reservations.length == 1 ? 'reserva' : 'reservas'}',
+                              style: GoogleFonts.montserrat(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        isExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: const Color(0xFF3D1F6E),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (isExpanded)
+                ...reservations.map((reservation) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: _ReservationCard(
+                    reservation: reservation,
+                    canModify: _canModify,
+                    onTap: () => _openReservationForm(reservation: reservation),
+                    onDelete: () => _deleteReservation(reservation.id!, reservation.idEmpleado),
+                  ),
+                )),
+            ],
+          ),
         );
       },
     );

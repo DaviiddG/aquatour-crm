@@ -15,8 +15,12 @@ const baseSelect = `
     c.id_paquete AS idPaquete,
     c.id_cliente AS idCliente,
     c.id_empleado AS idEmpleado,
+    u.nombre AS empleadoNombre,
+    u.apellido AS empleadoApellido,
     'pendiente' AS estado
   FROM Cotizaciones c
+  LEFT JOIN Empleado e ON c.id_empleado = e.id_empleado
+  LEFT JOIN Usuario u ON e.id_usuario = u.id_usuario
 `;
 
 export const findAllQuotes = async () => {

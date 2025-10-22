@@ -9,11 +9,14 @@ const baseSelect = `
     p.num_referencia AS numReferencia,
     p.monto,
     p.id_reserva AS idReserva,
-    r.id_empleado AS idEmpleado,
-    u.nombre AS nombreEmpleado
+    p.id_cotizacion AS idCotizacion,
+    COALESCE(r.id_empleado, c.id_empleado) AS idEmpleado,
+    u.nombre AS empleadoNombre,
+    u.apellido AS empleadoApellido
   FROM Pago p
   LEFT JOIN Reserva r ON p.id_reserva = r.id_reserva
-  LEFT JOIN Empleado e ON r.id_empleado = e.id_empleado
+  LEFT JOIN Cotizaciones c ON p.id_cotizacion = c.id_cotizacion
+  LEFT JOIN Empleado e ON COALESCE(r.id_empleado, c.id_empleado) = e.id_empleado
   LEFT JOIN Usuario u ON e.id_usuario = u.id_usuario
 `;
 
@@ -50,11 +53,12 @@ export const findPaymentsByEmployee = async (idUsuarioOrEmpleado) => {
   }
   
   // El baseSelect ya tiene los JOINs necesarios, solo agregamos el WHERE
+  // Buscar pagos donde el empleado sea de la reserva O de la cotización
   const [rows] = await query(`
     ${baseSelect}
-    WHERE r.id_empleado = ?
+    WHERE r.id_empleado = ? OR c.id_empleado = ?
     ORDER BY p.fecha_pago DESC
-  `, [idEmpleado]);
+  `, [idEmpleado, idEmpleado]);
   
   console.log(`📋 Pagos del empleado ${idEmpleado}: ${rows.length}`);
   return rows;
@@ -68,18 +72,20 @@ export const createPayment = async (payload) => {
   const bancoEmisor = payload.bancoEmisor || payload.banco_emisor;
   const numReferencia = payload.numReferencia || payload.num_referencia;
   const monto = payload.monto;
-  const idReserva = payload.idReserva || payload.id_reserva;
+  const idReserva = payload.idReserva || payload.id_reserva || null;
+  const idCotizacion = payload.idCotizacion || payload.id_cotizacion || null;
 
-  if (!metodo || !numReferencia || !monto || !idReserva) {
-    const error = new Error('Faltan campos obligatorios para crear el pago');
+  // Validar que tenga al menos una reserva o cotización
+  if (!metodo || !numReferencia || !monto || (!idReserva && !idCotizacion)) {
+    const error = new Error('Faltan campos obligatorios para crear el pago (debe tener reserva o cotización)');
     error.status = 400;
     throw error;
   }
 
   const [result] = await query(
-    `INSERT INTO Pago (fecha_pago, metodo, banco_emisor, num_referencia, monto, id_reserva)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [fechaPago, metodo, bancoEmisor, numReferencia, monto, idReserva]
+    `INSERT INTO Pago (fecha_pago, metodo, banco_emisor, num_referencia, monto, id_reserva, id_cotizacion)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [fechaPago, metodo, bancoEmisor, numReferencia, monto, idReserva, idCotizacion]
   );
 
   console.log(`✅ Pago creado con id=${result.insertId}`);

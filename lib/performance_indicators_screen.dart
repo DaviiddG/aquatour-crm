@@ -742,11 +742,11 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
 
   Widget _buildQuotesChart() {
     final quotes = _metrics['quotes'] ?? {};
-    final accepted = (quotes['accepted'] ?? 0).toDouble();
-    final rejected = (quotes['rejected'] ?? 0).toDouble();
+    final paid = (quotes['paid'] ?? 0).toDouble();
+    final partialPaid = (quotes['partialPaid'] ?? 0).toDouble();
     final pending = (quotes['pending'] ?? 0).toDouble();
-    final total = accepted + rejected + pending;
-    final maxValue = [accepted, rejected, pending].reduce((a, b) => a > b ? a : b);
+    final total = paid + partialPaid + pending;
+    final maxValue = [paid, partialPaid, pending].reduce((a, b) => a > b ? a : b);
 
     return Card(
       elevation: 3,
@@ -759,7 +759,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Conversión de Cotizaciones',
+              'Estado de Cotizaciones',
               style: GoogleFonts.montserrat(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -787,13 +787,13 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                               String label = '';
                               switch (group.x) {
                                 case 0:
-                                  label = 'Aceptadas';
+                                  label = 'Pagadas';
                                   break;
                                 case 1:
-                                  label = 'Pendientes';
+                                  label = 'Pago Parcial';
                                   break;
                                 case 2:
-                                  label = 'Rechazadas';
+                                  label = 'Pendientes';
                                   break;
                               }
                               final percentage = total > 0 ? (rod.toY / total * 100).toStringAsFixed(1) : '0';
@@ -818,17 +818,17 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                                   case 0:
                                     return Padding(
                                       padding: const EdgeInsets.only(top: 8),
-                                      child: Text('Aceptadas', style: GoogleFonts.montserrat(fontSize: 11)),
+                                      child: Text('Pagadas', style: GoogleFonts.montserrat(fontSize: 11)),
                                     );
                                   case 1:
                                     return Padding(
                                       padding: const EdgeInsets.only(top: 8),
-                                      child: Text('Pendientes', style: GoogleFonts.montserrat(fontSize: 11)),
+                                      child: Text('Pago Parcial', style: GoogleFonts.montserrat(fontSize: 11)),
                                     );
                                   case 2:
                                     return Padding(
                                       padding: const EdgeInsets.only(top: 8),
-                                      child: Text('Rechazadas', style: GoogleFonts.montserrat(fontSize: 11)),
+                                      child: Text('Pendientes', style: GoogleFonts.montserrat(fontSize: 11)),
                                     );
                                   default:
                                     return const Text('');
@@ -858,7 +858,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                             x: 0,
                             barRods: [
                               BarChartRodData(
-                                toY: accepted,
+                                toY: paid,
                                 color: const Color(0xFF4CAF50),
                                 width: 40,
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
@@ -869,7 +869,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                             x: 1,
                             barRods: [
                               BarChartRodData(
-                                toY: pending,
+                                toY: partialPaid,
                                 color: const Color(0xFFFF9800),
                                 width: 40,
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
@@ -880,8 +880,8 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                             x: 2,
                             barRods: [
                               BarChartRodData(
-                                toY: rejected,
-                                color: const Color(0xFFF44336),
+                                toY: pending,
+                                color: Colors.grey,
                                 width: 40,
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                               ),
@@ -898,9 +898,9 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               runSpacing: 8,
               alignment: WrapAlignment.center,
               children: [
-                _buildLegendItem('Aceptadas', const Color(0xFF4CAF50)),
-                _buildLegendItem('Pendientes', const Color(0xFFFF9800)),
-                _buildLegendItem('Rechazadas', const Color(0xFFF44336)),
+                _buildLegendItem('Pagadas', const Color(0xFF4CAF50)),
+                _buildLegendItem('Pago Parcial', const Color(0xFFFF9800)),
+                _buildLegendItem('Pendientes', Colors.grey),
               ],
             ),
           ],

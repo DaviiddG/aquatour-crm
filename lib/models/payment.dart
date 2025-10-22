@@ -5,9 +5,11 @@ class Payment {
   final String? bancoEmisor;
   final String numReferencia;
   final double monto;
-  final int idReserva;
+  final int? idReserva;
+  final int? idCotizacion;
   final int? idEmpleado;
-  final String? nombreEmpleado;
+  final String? empleadoNombre;
+  final String? empleadoApellido;
 
   Payment({
     this.id,
@@ -16,10 +18,23 @@ class Payment {
     this.bancoEmisor,
     required this.numReferencia,
     required this.monto,
-    required this.idReserva,
+    this.idReserva,
+    this.idCotizacion,
     this.idEmpleado,
-    this.nombreEmpleado,
+    this.empleadoNombre,
+    this.empleadoApellido,
   });
+  
+  // Nombre completo del empleado
+  String get empleadoNombreCompleto {
+    if (empleadoNombre != null && empleadoApellido != null) {
+      return '$empleadoNombre $empleadoApellido';
+    }
+    if (idEmpleado != null) {
+      return 'Usuario Inactivo #$idEmpleado';
+    }
+    return 'Sin empleado';
+  }
 
   factory Payment.fromMap(Map<String, dynamic> map) {
     return Payment(
@@ -29,9 +44,11 @@ class Payment {
       bancoEmisor: map['bancoEmisor'] ?? map['banco_emisor'],
       numReferencia: map['numReferencia']?.toString() ?? map['num_referencia']?.toString() ?? '',
       monto: _parseDouble(map['monto']) ?? 0.0,
-      idReserva: _parseInt(map['idReserva'] ?? map['id_reserva']) ?? 0,
+      idReserva: _parseInt(map['idReserva'] ?? map['id_reserva']),
+      idCotizacion: _parseInt(map['idCotizacion'] ?? map['id_cotizacion']),
       idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado']),
-      nombreEmpleado: map['nombreEmpleado'] ?? map['nombre_empleado'],
+      empleadoNombre: map['empleadoNombre']?.toString(),
+      empleadoApellido: map['empleadoApellido']?.toString(),
     );
   }
 
@@ -44,6 +61,7 @@ class Payment {
       'num_referencia': numReferencia,
       'monto': monto,
       'id_reserva': idReserva,
+      'id_cotizacion': idCotizacion,
     };
   }
 
@@ -55,8 +73,10 @@ class Payment {
     String? numReferencia,
     double? monto,
     int? idReserva,
+    int? idCotizacion,
     int? idEmpleado,
-    String? nombreEmpleado,
+    String? empleadoNombre,
+    String? empleadoApellido,
   }) {
     return Payment(
       id: id ?? this.id,
@@ -66,8 +86,10 @@ class Payment {
       numReferencia: numReferencia ?? this.numReferencia,
       monto: monto ?? this.monto,
       idReserva: idReserva ?? this.idReserva,
+      idCotizacion: idCotizacion ?? this.idCotizacion,
       idEmpleado: idEmpleado ?? this.idEmpleado,
-      nombreEmpleado: nombreEmpleado ?? this.nombreEmpleado,
+      empleadoNombre: empleadoNombre ?? this.empleadoNombre,
+      empleadoApellido: empleadoApellido ?? this.empleadoApellido,
     );
   }
 

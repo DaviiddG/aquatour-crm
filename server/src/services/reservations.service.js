@@ -12,12 +12,16 @@ const baseSelect = `
     r.id_cliente AS idCliente,
     r.id_paquete AS idPaquete,
     r.id_empleado AS idEmpleado,
+    u.nombre AS empleadoNombre,
+    u.apellido AS empleadoApellido,
     CAST(COALESCE((
       SELECT SUM(p.monto)
       FROM Pago p
       WHERE p.id_reserva = r.id_reserva
     ), 0) AS DECIMAL(10,2)) AS totalPagado
   FROM Reserva r
+  LEFT JOIN Empleado e ON r.id_empleado = e.id_empleado
+  LEFT JOIN Usuario u ON e.id_usuario = u.id_usuario
 `;
 
 export const findAllReservations = async () => {

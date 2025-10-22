@@ -28,6 +28,8 @@ class Quote {
   final int? idPaquete;
   final int idCliente;
   final int idEmpleado;
+  final String? empleadoNombre;
+  final String? empleadoApellido;
   final QuoteStatus estado;
   final List<Companion> acompanantes;
 
@@ -39,9 +41,18 @@ class Quote {
     this.idPaquete,
     required this.idCliente,
     required this.idEmpleado,
+    this.empleadoNombre,
+    this.empleadoApellido,
     this.estado = QuoteStatus.pendiente,
     this.acompanantes = const [],
   });
+  
+  String get empleadoNombreCompleto {
+    if (empleadoNombre != null && empleadoApellido != null) {
+      return '$empleadoNombre $empleadoApellido';
+    }
+    return 'Usuario Inactivo #$idEmpleado';
+  }
 
   factory Quote.fromMap(Map<String, dynamic> map) {
     QuoteStatus status = QuoteStatus.pendiente;
@@ -80,6 +91,8 @@ class Quote {
       idPaquete: _parseInt(map['idPaquete'] ?? map['id_paquete']),
       idCliente: _parseInt(map['idCliente'] ?? map['id_cliente']) ?? 0,
       idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado']) ?? 0,
+      empleadoNombre: map['empleadoNombre']?.toString(),
+      empleadoApellido: map['empleadoApellido']?.toString(),
       estado: status,
       acompanantes: companions,
     );
@@ -107,6 +120,8 @@ class Quote {
     int? idPaquete,
     int? idCliente,
     int? idEmpleado,
+    String? empleadoNombre,
+    String? empleadoApellido,
     QuoteStatus? estado,
     List<Companion>? acompanantes,
   }) {
@@ -118,6 +133,8 @@ class Quote {
       idPaquete: idPaquete ?? this.idPaquete,
       idCliente: idCliente ?? this.idCliente,
       idEmpleado: idEmpleado ?? this.idEmpleado,
+      empleadoNombre: empleadoNombre ?? this.empleadoNombre,
+      empleadoApellido: empleadoApellido ?? this.empleadoApellido,
       estado: estado ?? this.estado,
       acompanantes: acompanantes ?? this.acompanantes,
     );

@@ -26,6 +26,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
   List<TourPackage> _packages = [];
   int? _selectedClientId;
   int? _selectedPackageId;
+  bool _isAdmin = false;
   DateTime? _fechaInicio;
   DateTime? _fechaFin;
   
@@ -74,7 +75,20 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
     try {
       final currentUser = await _storageService.getCurrentUser();
       if (currentUser != null) {
-        final clients = await _storageService.getClients(forEmployeeId: currentUser.idUsuario);
+        _isAdmin = currentUser.esAdministrador;
+        
+        List<Client> clients;
+        
+        // Si es admin editando, cargar TODOS los clientes para poder ver el cliente aunque el empleado ya no exista
+        if (_isAdmin && widget.reservation != null) {
+          debugPrint('🔍 Admin editando reserva - Cargando TODOS los clientes');
+          clients = await _storageService.getClients(); // Sin filtro de empleado
+        } else {
+          // Si es empleado o admin creando nueva, cargar solo sus clientes
+          debugPrint('🔍 Cargando clientes para empleado ID: ${currentUser.idUsuario}');
+          clients = await _storageService.getClients(forEmployeeId: currentUser.idUsuario);
+        }
+        
         final packages = await _storageService.getPackages();
         if (mounted) {
           setState(() {
@@ -296,7 +310,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                       DropdownButtonFormField<int>(
                         value: _selectedClientId,
                         decoration: InputDecoration(
-                          labelText: 'Seleccionar cliente *',
+                          labelText: 'Cliente *',
                           labelStyle: GoogleFonts.montserrat(fontSize: 13),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -308,6 +322,8 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                             borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(color: Color(0xFF3D1F6E), width: 1.5),
                           ),
+                          filled: _isAdmin && widget.reservation != null,
+                          fillColor: _isAdmin && widget.reservation != null ? Colors.grey[100] : null,
                         ),
                         items: _clients.map((client) {
                           return DropdownMenuItem<int>(
@@ -315,11 +331,17 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                             child: Text(client.nombreCompleto, style: GoogleFonts.montserrat(fontSize: 14)),
                           );
                         }).toList(),
-                        onChanged: (value) {
+                        onChanged: (_isAdmin && widget.reservation != null) ? null : (value) {
                           setState(() => _selectedClientId = value);
                           _markAsChanged();
                         },
                         validator: (value) => value == null ? 'Selecciona un cliente' : null,
+                        disabledHint: _selectedClientId != null && _clients.isNotEmpty
+                            ? Text(
+                                _clients.firstWhere((c) => c.id == _selectedClientId).nombreCompleto,
+                                style: GoogleFonts.montserrat(fontSize: 14, color: Colors.black87),
+                              )
+                            : null,
                       ),
                     ],
                   ),

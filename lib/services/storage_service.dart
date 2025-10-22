@@ -584,7 +584,9 @@ class StorageService {
       // Agrupar reservas únicas que tienen pagos
       final reservationsWithPayments = <int>{};
       for (final payment in payments) {
-        reservationsWithPayments.add(payment.idReserva);
+        if (payment.idReserva != null) {
+          reservationsWithPayments.add(payment.idReserva!);
+        }
       }
       
       for (final reservationId in reservationsWithPayments) {
@@ -599,10 +601,24 @@ class StorageService {
         }
       }
       
-      // Calcular métricas de cotizaciones
+      // Calcular métricas de cotizaciones basadas en estado de pago
       final totalQuotes = quotes.length;
-      final acceptedQuotes = quotes.where((q) => q.estado == QuoteStatus.aceptada).length;
-      final rejectedQuotes = quotes.where((q) => q.estado == QuoteStatus.rechazada).length;
+      int paidQuotes = 0;
+      int partialPaidQuotes = 0;
+      int pendingQuotes = 0;
+      
+      for (final quote in quotes) {
+        final quotePayments = payments.where((p) => p.idCotizacion == quote.id).toList();
+        final totalPaid = quotePayments.fold<double>(0.0, (sum, p) => sum + p.monto);
+        
+        if (totalPaid >= quote.precioEstimado) {
+          paidQuotes++; // Completamente pagada
+        } else if (totalPaid > 0) {
+          partialPaidQuotes++; // Pago parcial
+        } else {
+          pendingQuotes++; // Sin pagos
+        }
+      }
       
       // Obtener clientes del empleado
       final clients = await getClients(forEmployeeId: userId);
@@ -627,9 +643,9 @@ class StorageService {
         },
         'quotes': {
           'total': totalQuotes,
-          'accepted': acceptedQuotes,
-          'rejected': rejectedQuotes,
-          'pending': totalQuotes - acceptedQuotes - rejectedQuotes,
+          'paid': paidQuotes,
+          'partialPaid': partialPaidQuotes,
+          'pending': pendingQuotes,
         },
         'clients': {
           'total': clients.length,
@@ -641,7 +657,7 @@ class StorageService {
       return {
         'sales': {'total': 0, 'completed': 0, 'inProcess': 0, 'totalRevenue': 0.0, 'averageSale': 0.0},
         'reservations': {'total': 0, 'confirmed': 0, 'pending': 0, 'inProcess': 0, 'paid': 0, 'cancelled': 0},
-        'quotes': {'total': 0, 'accepted': 0, 'rejected': 0, 'pending': 0},
+        'quotes': {'total': 0, 'paid': 0, 'partialPaid': 0, 'pending': 0},
         'clients': {'total': 0},
       };
     }

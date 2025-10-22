@@ -21,9 +21,9 @@ class PermissionsHelper {
     return role == UserRole.administrador || role == UserRole.empleado;
   }
 
-  /// Verifica si el usuario puede crear cotizaciones
+  /// Verifica si el usuario puede crear cotizaciones (solo empleados)
   static bool canCreateQuotes(UserRole role) {
-    return role == UserRole.administrador || role == UserRole.empleado;
+    return role == UserRole.empleado;
   }
 
   /// Verifica si el usuario puede crear reservas

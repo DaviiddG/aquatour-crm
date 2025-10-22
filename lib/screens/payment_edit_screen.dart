@@ -4,9 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models/payment.dart';
 import '../models/reservation.dart';
+import '../models/quote.dart';
 import '../services/storage_service.dart';
 import '../utils/number_formatter.dart';
 import '../utils/currency_input_formatter.dart';
+import '../utils/max_amount_formatter.dart';
 import '../widgets/unsaved_changes_dialog.dart';
 
 class PaymentEditScreen extends StatefulWidget {
@@ -22,8 +24,15 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
   final _formKey = GlobalKey<FormState>();
   final StorageService _storageService = StorageService();
 
+  // Tipo de pago: 'cotizacion' o 'reserva'
+  String _tipoPago = 'reserva';
+  
   List<Reservation> _reservations = [];
+  List<Quote> _quotes = [];
   int? _selectedReservationId;
+  int? _selectedQuoteId;
+  double _saldoPendiente = 0.0;
+  
   String _selectedMetodo = PaymentMethod.transferencia;
   DateTime _fechaPago = DateTime.now();
   
@@ -62,7 +71,7 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
     _numReferenciaController.addListener(_markAsChanged);
     _montoController.addListener(_markAsChanged);
     
-    _loadReservations();
+    _loadData();
   }
   
   void _markAsChanged() {
@@ -73,15 +82,50 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
     }
   }
 
-  Future<void> _loadReservations() async {
+  Future<void> _loadData() async {
     try {
       final currentUser = await _storageService.getCurrentUser();
       if (currentUser != null) {
-        final reservations = await _storageService.getReservationsByEmployee(currentUser.idUsuario!);
+        // Cargar reservas con saldo pendiente
+        final allReservations = await _storageService.getReservationsByEmployee(currentUser.idUsuario!);
+        final reservationsWithBalance = <Reservation>[];
+        
+        // Si estamos editando un pago, incluir la reserva asociada aunque esté completamente pagada
+        final editingReservationId = widget.payment?.idReserva;
+        
+        for (var reservation in allReservations) {
+          final balance = await _storageService.getReservationBalance(reservation.id!);
+          final remaining = balance['montoRestante'] as double;
+          
+          debugPrint('🔍 Reserva #${reservation.id}: Total=${reservation.totalPago}, Pagado=${balance['montoPagado']}, Restante=$remaining');
+          
+          // Incluir si tiene saldo pendiente O si es la reserva que estamos editando
+          if (remaining > 0 || reservation.id == editingReservationId) {
+            reservationsWithBalance.add(reservation);
+          }
+        }
+        
+        debugPrint('✅ Total reservas con saldo: ${reservationsWithBalance.length} de ${allReservations.length}');
+        
+        // Cargar cotizaciones (por ahora sin filtro de saldo, ya que no tienen pagos asociados)
+        final quotes = await _storageService.getQuotesByEmployee(currentUser.idUsuario!);
+        
+        debugPrint('📋 Cotizaciones cargadas: ${quotes.length}');
+        for (var quote in quotes) {
+          debugPrint('   Cotización #${quote.id}: Precio=${quote.precioEstimado}');
+        }
+        
         if (mounted) {
           setState(() {
-            _reservations = reservations;
+            _reservations = reservationsWithBalance;
+            _quotes = quotes;
             _isLoading = false;
+            
+            // Si estamos editando, preseleccionar la reserva después de cargar
+            if (widget.payment != null && editingReservationId != null) {
+              _selectedReservationId = editingReservationId;
+              _updateSaldoPendiente();
+            }
           });
         }
       }
@@ -89,9 +133,24 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error cargando reservas: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error cargando datos: $e'), backgroundColor: Colors.red),
         );
       }
+    }
+  }
+  
+  Future<void> _updateSaldoPendiente() async {
+    if (_tipoPago == 'reserva' && _selectedReservationId != null) {
+      final balance = await _storageService.getReservationBalance(_selectedReservationId!);
+      setState(() {
+        _saldoPendiente = balance['montoRestante'] as double;
+      });
+    } else if (_tipoPago == 'cotizacion' && _selectedQuoteId != null) {
+      // Para cotizaciones, el saldo pendiente es el precio estimado completo
+      final quote = _quotes.firstWhere((q) => q.id == _selectedQuoteId);
+      setState(() {
+        _saldoPendiente = quote.precioEstimado;
+      });
     }
   }
 
@@ -129,12 +188,132 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
 
   Future<void> _savePayment() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedReservationId == null) {
+    
+    if (_tipoPago == 'reserva' && _selectedReservationId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecciona una reserva'), backgroundColor: Colors.orange),
       );
       return;
     }
+    
+    if (_tipoPago == 'cotizacion' && _selectedQuoteId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona una cotización'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    // Mostrar diálogo de confirmación
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '¿Confirmar registro?',
+                style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '⚠️ IMPORTANTE',
+              style: GoogleFonts.montserrat(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.orange[900],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Una vez registrado, este pago NO podrá ser editado ni eliminado.',
+              style: GoogleFonts.montserrat(fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Resumen del pago:',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Monto: ${NumberFormatter.formatCurrency(CurrencyInputFormatter.parseFormattedValue(_montoController.text) ?? 0)}',
+                    style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    'Método: $_selectedMetodo',
+                    style: GoogleFonts.montserrat(fontSize: 13),
+                  ),
+                  Text(
+                    'Fecha: ${DateFormat('dd/MM/yyyy').format(_fechaPago)}',
+                    style: GoogleFonts.montserrat(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '¿Está seguro de registrar este pago?',
+              style: GoogleFonts.montserrat(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancelar',
+              style: GoogleFonts.montserrat(color: Colors.grey[600]),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3D1F6E),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Sí, registrar',
+              style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
 
     setState(() => _isSaving = true);
 
@@ -159,31 +338,74 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
         bancoEmisor: _bancoEmisorController.text.trim().isEmpty ? null : _bancoEmisorController.text.trim(),
         numReferencia: numFactura,
         monto: monto,
-        idReserva: _selectedReservationId!,
+        idReserva: _tipoPago == 'reserva' ? _selectedReservationId : null,
+        idCotizacion: _tipoPago == 'cotizacion' ? _selectedQuoteId : null,
       );
+
+      debugPrint('💰 Guardando pago:');
+      debugPrint('   Tipo: $_tipoPago');
+      debugPrint('   idReserva: ${payment.idReserva}');
+      debugPrint('   idCotizacion: ${payment.idCotizacion}');
+      debugPrint('   Monto: ${payment.monto}');
 
       await _storageService.savePayment(payment);
 
       setState(() => _hasUnsavedChanges = false);
 
-      // Verificar si la reserva está completamente pagada
-      final balance = await _storageService.getReservationBalance(_selectedReservationId!);
-      final remaining = balance['montoRestante'] as double;
+      String successMessage = 'Pago guardado exitosamente';
+      
+      // Verificar saldo y actualizar estado según el tipo
+      if (_tipoPago == 'reserva') {
+        final balance = await _storageService.getReservationBalance(_selectedReservationId!);
+        final remaining = balance['montoRestante'] as double;
 
-      // Si el pago está completo, actualizar el estado de la reserva a "confirmada"
-      if (remaining <= 0) {
+        // Si el pago está completo, actualizar el estado de la reserva a "confirmada"
+        if (remaining <= 0) {
+          try {
+            final reservations = await _storageService.getAllReservations();
+            final reservation = reservations.firstWhere((r) => r.id == _selectedReservationId);
+            
+            final updatedReservation = reservation.copyWith(
+              estado: ReservationStatus.confirmada,
+            );
+            
+            await _storageService.saveReservation(updatedReservation);
+            debugPrint('✅ Reserva #${_selectedReservationId} marcada como confirmada (pago completo)');
+            successMessage = 'Pago guardado. ¡Reserva completamente pagada!';
+          } catch (e) {
+            debugPrint('⚠️ Error actualizando estado de reserva: $e');
+          }
+        }
+      } else if (_tipoPago == 'cotizacion') {
+        // Actualizar estado de cotización según pagos
         try {
-          final reservations = await _storageService.getAllReservations();
-          final reservation = reservations.firstWhere((r) => r.id == _selectedReservationId);
+          final currentUser = await _storageService.getCurrentUser();
+          final quotes = await _storageService.getQuotesByEmployee(currentUser!.idUsuario!);
+          final quote = quotes.firstWhere((q) => q.id == _selectedQuoteId);
           
-          final updatedReservation = reservation.copyWith(
-            estado: ReservationStatus.confirmada,
-          );
+          // Calcular total pagado
+          final allPayments = await _storageService.getPaymentsByEmployee(currentUser.idUsuario!);
+          final quotePayments = allPayments.where((p) => p.idCotizacion == _selectedQuoteId).toList();
+          final totalPaid = quotePayments.fold<double>(0.0, (sum, p) => sum + p.monto);
           
-          await _storageService.saveReservation(updatedReservation);
-          debugPrint('✅ Reserva #${_selectedReservationId} marcada como confirmada (pago completo)');
+          // Determinar nuevo estado
+          QuoteStatus newStatus;
+          if (totalPaid >= quote.precioEstimado) {
+            newStatus = QuoteStatus.aceptada; // Completamente pagada
+            successMessage = 'Pago guardado. ¡Cotización completamente pagada!';
+          } else if (totalPaid > 0) {
+            newStatus = QuoteStatus.pendiente; // Pago parcial (mantenemos pendiente pero con pagos)
+          } else {
+            newStatus = quote.estado; // Sin cambios
+          }
+          
+          if (newStatus != quote.estado) {
+            final updatedQuote = quote.copyWith(estado: newStatus);
+            await _storageService.saveQuote(updatedQuote);
+            debugPrint('✅ Cotización #${_selectedQuoteId} actualizada a estado: $newStatus');
+          }
         } catch (e) {
-          debugPrint('⚠️ Error actualizando estado de reserva: $e');
+          debugPrint('⚠️ Error actualizando estado de cotización: $e');
         }
       }
 
@@ -191,9 +413,7 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(remaining <= 0 
-                ? 'Pago guardado. ¡Reserva completamente pagada!' 
-                : 'Pago guardado exitosamente'),
+            content: Text(successMessage),
             backgroundColor: Colors.green,
           ),
         );
@@ -210,8 +430,6 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.payment != null;
-
     return UnsavedChangesHandler(
       hasUnsavedChanges: _hasUnsavedChanges,
       onSave: _savePayment,
@@ -238,7 +456,7 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              isEditing ? 'Editar Pago' : 'Registrar Pago',
+              'Registrar Pago',
               style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 18, color: const Color(0xFF1F1F1F)),
             ),
             Text(
@@ -258,39 +476,163 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                 padding: const EdgeInsets.all(24),
                 children: [
                   _buildSection(
-                    title: 'Reserva Asociada',
+                    title: 'Tipo de Pago',
                     children: [
-                      DropdownButtonFormField<int>(
-                        value: _selectedReservationId,
-                        decoration: InputDecoration(
-                          labelText: 'Seleccionar reserva *',
-                          labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                            value: 'reserva',
+                            label: Text('Reserva'),
+                            icon: Icon(Icons.event_available, size: 18),
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Color(0xFF3D1F6E), width: 1.5),
+                          ButtonSegment(
+                            value: 'cotizacion',
+                            label: Text('Cotización'),
+                            icon: Icon(Icons.request_quote, size: 18),
                           ),
-                        ),
-                        items: _reservations.map((reservation) {
-                          return DropdownMenuItem<int>(
-                            value: reservation.id,
-                            child: Text(
-                              'Reserva #${reservation.id} - ${NumberFormatter.formatCurrencyWithDecimals(reservation.totalPago)}',
-                              style: GoogleFonts.montserrat(fontSize: 14),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() => _selectedReservationId = value);
+                        ],
+                        selected: {_tipoPago},
+                        onSelectionChanged: (Set<String> newSelection) {
+                          setState(() {
+                            _tipoPago = newSelection.first;
+                            _selectedReservationId = null;
+                            _selectedQuoteId = null;
+                            _saldoPendiente = 0.0;
+                          });
                           _markAsChanged();
                         },
-                        validator: (value) => value == null ? 'Selecciona una reserva' : null,
+                        style: ButtonStyle(
+                          backgroundColor: MaterialStateProperty.resolveWith<Color>((states) {
+                            if (states.contains(MaterialState.selected)) {
+                              return const Color(0xFF3D1F6E);
+                            }
+                            return Colors.white;
+                          }),
+                          foregroundColor: MaterialStateProperty.resolveWith<Color>((states) {
+                            if (states.contains(MaterialState.selected)) {
+                              return Colors.white;
+                            }
+                            return const Color(0xFF3D1F6E);
+                          }),
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _buildSection(
+                    title: _tipoPago == 'reserva' ? 'Reserva Asociada' : 'Cotización Asociada',
+                    children: [
+                      if (_tipoPago == 'reserva') ...[
+                        DropdownButtonFormField<int>(
+                          value: _selectedReservationId,
+                          decoration: InputDecoration(
+                            labelText: 'Seleccionar reserva *',
+                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                            hintText: _reservations.isEmpty ? 'No hay reservas con saldo pendiente' : 'Selecciona una reserva',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0xFF3D1F6E), width: 1.5),
+                            ),
+                          ),
+                          items: _reservations.map((reservation) {
+                            return DropdownMenuItem<int>(
+                              value: reservation.id,
+                              child: Text(
+                                'Reserva #${reservation.id} - ${NumberFormatter.formatCurrencyWithDecimals(reservation.totalPago)}',
+                                style: GoogleFonts.montserrat(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) async {
+                            setState(() => _selectedReservationId = value);
+                            _markAsChanged();
+                            await _updateSaldoPendiente();
+                          },
+                          validator: (value) => value == null ? 'Selecciona una reserva' : null,
+                        ),
+                      ] else ...[
+                        DropdownButtonFormField<int>(
+                          value: _selectedQuoteId,
+                          decoration: InputDecoration(
+                            labelText: 'Seleccionar cotización *',
+                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                            hintText: _quotes.isEmpty ? 'No hay cotizaciones disponibles' : 'Selecciona una cotización',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0xFF3D1F6E), width: 1.5),
+                            ),
+                          ),
+                          items: _quotes.map((quote) {
+                            return DropdownMenuItem<int>(
+                              value: quote.id,
+                              child: Text(
+                                'Cotización #${quote.id} - ${NumberFormatter.formatCurrencyWithDecimals(quote.precioEstimado)}',
+                                style: GoogleFonts.montserrat(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) async {
+                            debugPrint('✅ Cotización seleccionada: #$value');
+                            setState(() => _selectedQuoteId = value);
+                            _markAsChanged();
+                            await _updateSaldoPendiente();
+                          },
+                          validator: (value) => value == null ? 'Selecciona una cotización' : null,
+                        ),
+                      ],
+                      if (_saldoPendiente > 0) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Saldo pendiente',
+                                      style: GoogleFonts.montserrat(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.blue[900],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      NumberFormatter.formatCurrency(_saldoPendiente),
+                                      style: GoogleFonts.montserrat(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.blue[900],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -338,21 +680,36 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                           );
                         }).toList(),
                         onChanged: (value) {
-                          setState(() => _selectedMetodo = value!);
+                          setState(() {
+                            _selectedMetodo = value!;
+                            // Limpiar banco emisor si se selecciona efectivo
+                            if (value == PaymentMethod.efectivo) {
+                              _bancoEmisorController.clear();
+                            }
+                          });
                           _markAsChanged();
                         },
+                        validator: (value) => value == null || value.isEmpty ? 'Selecciona un método de pago' : null,
                       ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _bancoEmisorController,
-                        decoration: InputDecoration(
-                          labelText: 'Banco emisor',
-                          labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          prefixIcon: const Icon(Icons.account_balance, size: 20),
+                      if (_selectedMetodo != PaymentMethod.efectivo) ...[
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _bancoEmisorController,
+                          decoration: InputDecoration(
+                            labelText: 'Banco emisor *',
+                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            prefixIcon: const Icon(Icons.account_balance, size: 20),
+                          ),
+                          validator: (value) {
+                            if (_selectedMetodo != PaymentMethod.efectivo && (value == null || value.trim().isEmpty)) {
+                              return 'El banco emisor es obligatorio';
+                            }
+                            return null;
+                          },
                         ),
-                      ),
+                      ],
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _numReferenciaController,
@@ -373,11 +730,16 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
                           CurrencyInputFormatter(),
+                          if (_saldoPendiente > 0) MaxAmountFormatter(_saldoPendiente),
                         ],
                         decoration: InputDecoration(
                           labelText: 'Monto *',
                           labelStyle: GoogleFonts.montserrat(fontSize: 13),
                           hintText: '0',
+                          helperText: _saldoPendiente > 0 
+                              ? 'Máximo: ${NumberFormatter.formatCurrency(_saldoPendiente)}'
+                              : null,
+                          helperStyle: GoogleFonts.montserrat(fontSize: 12, color: Colors.blue[700]),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           prefixIcon: Padding(
@@ -397,6 +759,9 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                           if (value == null || value.isEmpty) return 'Campo obligatorio';
                           final parsedValue = CurrencyInputFormatter.parseFormattedValue(value);
                           if (parsedValue == null) return 'Debe ser un número válido';
+                          if (_saldoPendiente > 0 && parsedValue > _saldoPendiente) {
+                            return 'El monto no puede exceder el saldo pendiente';
+                          }
                           return null;
                         },
                       ),
@@ -420,7 +785,7 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                             )
                           : const Icon(Icons.save_rounded, size: 20, color: Colors.white),
                       label: Text(
-                        isEditing ? 'Actualizar' : 'Guardar',
+                        'Guardar',
                         style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
                       ),
                     ),

@@ -52,6 +52,8 @@ class Reservation extends Equatable {
     required this.idCliente,
     this.idPaquete,
     required this.idEmpleado,
+    this.empleadoNombre,
+    this.empleadoApellido,
     this.notas,
     this.totalPagado = 0,
   });
@@ -66,11 +68,21 @@ class Reservation extends Equatable {
   final int idCliente;
   final int? idPaquete;
   final int idEmpleado;
+  final String? empleadoNombre;
+  final String? empleadoApellido;
   final String? notas;
   final double totalPagado;
 
   // Calcula el estado de pago basado en los montos
   PaymentStatus get paymentStatus => PaymentStatus.fromAmounts(totalPagado, totalPago);
+  
+  // Nombre completo del empleado
+  String get empleadoNombreCompleto {
+    if (empleadoNombre != null && empleadoApellido != null) {
+      return '$empleadoNombre $empleadoApellido';
+    }
+    return 'Usuario Inactivo #$idEmpleado';
+  }
 
   Reservation copyWith({
     int? id,
@@ -83,6 +95,8 @@ class Reservation extends Equatable {
     int? idCliente,
     int? idPaquete,
     int? idEmpleado,
+    String? empleadoNombre,
+    String? empleadoApellido,
     String? notas,
     double? totalPagado,
   }) {
@@ -97,6 +111,8 @@ class Reservation extends Equatable {
       idCliente: idCliente ?? this.idCliente,
       idPaquete: idPaquete ?? this.idPaquete,
       idEmpleado: idEmpleado ?? this.idEmpleado,
+      empleadoNombre: empleadoNombre ?? this.empleadoNombre,
+      empleadoApellido: empleadoApellido ?? this.empleadoApellido,
       notas: notas ?? this.notas,
       totalPagado: totalPagado ?? this.totalPagado,
     );
@@ -114,6 +130,8 @@ class Reservation extends Equatable {
       idCliente: _parseInt(map['idCliente'] ?? map['id_cliente']) ?? 0,
       idPaquete: _parseInt(map['idPaquete'] ?? map['id_paquete']),
       idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado']) ?? 0,
+      empleadoNombre: map['empleadoNombre']?.toString(),
+      empleadoApellido: map['empleadoApellido']?.toString(),
       notas: map['notas']?.toString(),
       totalPagado: _parseDouble(map['totalPagado'] ?? map['total_pagado']) ?? 0,
     );
@@ -161,6 +179,8 @@ class Reservation extends Equatable {
         estado,
         cantidadPersonas,
         totalPago,
+        empleadoNombre,
+        empleadoApellido,
         fechaInicioViaje,
         fechaFinViaje,
         idCliente,

@@ -18,10 +18,13 @@ class QuotesScreen extends StatefulWidget {
 class _QuotesScreenState extends State<QuotesScreen> {
   final StorageService _storageService = StorageService();
   List<Quote> _quotes = [];
+  Map<int, List<Quote>> _quotesByEmployee = {};
+  Map<int, User> _employeesMap = {};
   User? _currentUser;
   bool _isLoading = true;
   bool _canCreate = false;
   bool _canModify = false;
+  Set<int> _expandedEmployees = {};
 
   @override
   void initState() {
@@ -43,6 +46,36 @@ class _QuotesScreenState extends State<QuotesScreen> {
         final quotes = currentUser.rol == UserRole.empleado
             ? await _storageService.getQuotesByEmployee(currentUser.idUsuario!)
             : await _storageService.getQuotes();
+        
+        // Si es admin, agrupar por empleado
+        if (currentUser.rol != UserRole.empleado && quotes.isNotEmpty) {
+          final allUsers = await _storageService.getAllUsers();
+          _employeesMap = {};
+          for (var user in allUsers) {
+            if (user.idUsuario != null) {
+              _employeesMap[user.idUsuario!] = user;
+            }
+          }
+          
+          debugPrint('📊 Empleados cargados: ${_employeesMap.length}');
+          _employeesMap.forEach((id, user) {
+            debugPrint('  - ID: $id, Nombre: ${user.nombreCompleto}');
+          });
+          
+          _quotesByEmployee = {};
+          for (var quote in quotes) {
+            final employeeId = quote.idEmpleado;
+            debugPrint('📋 Cotización ID: ${quote.id}, idEmpleado: $employeeId, Nombre: ${quote.empleadoNombreCompleto}');
+            
+            // Agrupar por empleado
+            if (!_quotesByEmployee.containsKey(employeeId)) {
+              _quotesByEmployee[employeeId] = [];
+            }
+            _quotesByEmployee[employeeId]!.add(quote);
+          }
+          
+          // No expandir ninguno por defecto
+        }
         
         if (mounted) {
           setState(() {
@@ -122,7 +155,9 @@ class _QuotesScreenState extends State<QuotesScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _quotes.isEmpty
               ? _buildEmptyState()
-              : _buildQuotesList(),
+              : _currentUser?.rol == UserRole.empleado
+                  ? _buildQuotesList()
+                  : _buildGroupedQuotesList(),
     );
   }
 
@@ -148,8 +183,6 @@ class _QuotesScreenState extends State<QuotesScreen> {
   }
 
   Widget _buildQuotesList() {
-    // Los empleados pueden editar TODAS las cotizaciones que se les muestran
-    // (ya que el backend filtra por empleado)
     final canModifyQuotes = _canModify || _currentUser?.rol == UserRole.empleado;
     
     return ListView.builder(
@@ -163,6 +196,117 @@ class _QuotesScreenState extends State<QuotesScreen> {
           onTap: () => _openQuoteForm(quote: quote),
           onDelete: () => _deleteQuote(quote.id!),
           getStatusColor: _getStatusColor,
+        );
+      },
+    );
+  }
+
+  Widget _buildGroupedQuotesList() {
+    final sortedEmployeeIds = _quotesByEmployee.keys.toList()
+      ..sort((a, b) {
+        // Obtener el nombre del primer quote de cada empleado
+        final nameA = _quotesByEmployee[a]?.first.empleadoNombreCompleto ?? '';
+        final nameB = _quotesByEmployee[b]?.first.empleadoNombreCompleto ?? '';
+        return nameA.compareTo(nameB);
+      });
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: sortedEmployeeIds.length,
+      itemBuilder: (context, index) {
+        final employeeId = sortedEmployeeIds[index];
+        final quotes = _quotesByEmployee[employeeId] ?? [];
+        final isExpanded = _expandedEmployees.contains(employeeId);
+        // Obtener el nombre del empleado del primer quote
+        final employeeName = quotes.isNotEmpty ? quotes.first.empleadoNombreCompleto : 'Empleado #$employeeId';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    if (isExpanded) {
+                      _expandedEmployees.remove(employeeId);
+                    } else {
+                      _expandedEmployees.add(employeeId);
+                    }
+                  });
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF4C39A6).withValues(alpha: 0.1),
+                        const Color(0xFF3D1F6E).withValues(alpha: 0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3D1F6E).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          color: Color(0xFF3D1F6E),
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              employeeName,
+                              style: GoogleFonts.montserrat(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF1F1F1F),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${quotes.length} ${quotes.length == 1 ? 'cotización' : 'cotizaciones'}',
+                              style: GoogleFonts.montserrat(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        isExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: const Color(0xFF3D1F6E),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (isExpanded)
+                ...quotes.map((quote) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: _QuoteCard(
+                    quote: quote,
+                    canModify: _canModify,
+                    onTap: () => _openQuoteForm(quote: quote),
+                    onDelete: () => _deleteQuote(quote.id!),
+                    getStatusColor: _getStatusColor,
+                  ),
+                )),
+            ],
+          ),
         );
       },
     );
@@ -258,21 +402,7 @@ class _QuoteCardState extends State<_QuoteCard> {
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: widget.getStatusColor(widget.quote.estado).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      widget.quote.estado.displayName,
-                      style: GoogleFonts.montserrat(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: widget.getStatusColor(widget.quote.estado),
-                      ),
-                    ),
-                  ),
+                  _QuotePaymentStatus(quoteId: widget.quote.id!, precioEstimado: widget.quote.precioEstimado),
                   if (widget.canModify) ...[
                     IconButton(
                       icon: const Icon(Icons.edit, size: 20, color: Color(0xFF3D1F6E)),
@@ -289,6 +419,97 @@ class _QuoteCardState extends State<_QuoteCard> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuotePaymentStatus extends StatefulWidget {
+  const _QuotePaymentStatus({
+    required this.quoteId,
+    required this.precioEstimado,
+  });
+
+  final int quoteId;
+  final double precioEstimado;
+
+  @override
+  State<_QuotePaymentStatus> createState() => _QuotePaymentStatusState();
+}
+
+class _QuotePaymentStatusState extends State<_QuotePaymentStatus> {
+  final StorageService _storageService = StorageService();
+  double _totalPaid = 0.0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPayments();
+  }
+
+  Future<void> _loadPayments() async {
+    try {
+      final currentUser = await _storageService.getCurrentUser();
+      if (currentUser != null) {
+        final allPayments = currentUser.rol == UserRole.empleado
+            ? await _storageService.getPaymentsByEmployee(currentUser.idUsuario!)
+            : await _storageService.getAllPayments();
+        final quotePayments = allPayments.where((p) => p.idCotizacion == widget.quoteId).toList();
+        final totalPaid = quotePayments.fold<double>(0.0, (sum, p) => sum + p.monto);
+        
+        if (mounted) {
+          setState(() {
+            _totalPaid = totalPaid;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error cargando pagos de cotización: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const SizedBox(
+        width: 80,
+        height: 24,
+        child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+
+    String statusText;
+    Color statusColor;
+
+    if (_totalPaid >= widget.precioEstimado) {
+      statusText = 'Pagada';
+      statusColor = Colors.green;
+    } else if (_totalPaid > 0) {
+      statusText = 'Pago parcial';
+      statusColor = Colors.orange;
+    } else {
+      statusText = 'Pendiente';
+      statusColor = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        statusText,
+        style: GoogleFonts.montserrat(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: statusColor,
         ),
       ),
     );
