@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/models/user.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
+import 'package:aquatour/utils/password_validator.dart';
 
 class UserEditScreen extends StatefulWidget {
   const UserEditScreen({
@@ -309,7 +310,7 @@ class _UserEditScreenState extends State<UserEditScreen>
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<UserRole>(
-            value: _rol,
+            initialValue: _rol,
             decoration: const InputDecoration(
               labelText: 'Rol',
               border: OutlineInputBorder(),
@@ -351,7 +352,7 @@ class _UserEditScreenState extends State<UserEditScreen>
           _buildSectionTitle('Documentos e identificación'),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _tipoDocumento,
+            initialValue: _tipoDocumento,
             decoration: const InputDecoration(
               labelText: 'Tipo de documento',
               border: OutlineInputBorder(),
@@ -415,7 +416,7 @@ class _UserEditScreenState extends State<UserEditScreen>
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _genero,
+            initialValue: _genero,
             decoration: const InputDecoration(
               labelText: 'Género',
               border: OutlineInputBorder(),
@@ -529,23 +530,152 @@ class _UserEditScreenState extends State<UserEditScreen>
           const SizedBox(height: 16),
           TextFormField(
             controller: _passwordController,
-            decoration: const InputDecoration(
-              labelText: 'Nueva contraseña (opcional)',
-              border: OutlineInputBorder(),
-              helperText:
-                  'Deja vacío si deseas mantener la contraseña actual.',
+            decoration: InputDecoration(
+              labelText: widget.user.idUsuario == null 
+                  ? 'Contraseña *' 
+                  : 'Nueva contraseña (opcional)',
+              border: const OutlineInputBorder(),
+              helperText: widget.user.idUsuario == null
+                  ? PasswordValidator.getHelpText()
+                  : 'Deja vacío si deseas mantener la contraseña actual.',
+              helperMaxLines: 6,
             ),
             obscureText: true,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             validator: (value) {
-              if (value != null && value.isNotEmpty && value.length < 6) {
-                return 'Debe tener al menos 6 caracteres.';
+              // Si es un usuario nuevo, la contraseña es REQUERIDA y debe ser fuerte
+              if (widget.user.idUsuario == null) {
+                return PasswordValidator.validate(value, isRequired: true);
+              }
+              // Si es edición, la contraseña es OPCIONAL pero si se ingresa debe ser fuerte
+              if (value != null && value.isNotEmpty) {
+                return PasswordValidator.validate(value, isRequired: false);
               }
               return null;
+            },
+          ),
+          // Indicador de fortaleza de contraseña
+          const SizedBox(height: 12),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _passwordController,
+            builder: (context, value, child) {
+              print('🔍 Password value: "${value.text}" (length: ${value.text.length})');
+              if (value.text.isEmpty) {
+                print('❌ Password is empty, returning shrink');
+                return const SizedBox.shrink();
+              }
+              final strength = PasswordValidator.getStrength(value.text);
+              print('✅ Building indicator with strength: $strength');
+              return _buildPasswordStrengthIndicator(strength, value.text);
             },
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildPasswordStrengthIndicator(int strength, String password) {
+    print('🎨 Building indicator widget for password: "$password", strength: $strength');
+    
+    // Determinar color y texto según fortaleza
+    Color barColor;
+    String strengthText;
+    double progress;
+
+    switch (strength) {
+      case 0:
+      case 1:
+        barColor = Colors.red;
+        strengthText = 'Muy débil';
+        progress = 0.2;
+        break;
+      case 2:
+        barColor = Colors.orange;
+        strengthText = 'Débil';
+        progress = 0.4;
+        break;
+      case 3:
+        barColor = Colors.yellow.shade700;
+        strengthText = 'Aceptable';
+        progress = 0.6;
+        break;
+      case 4:
+        barColor = Colors.lightGreen;
+        strengthText = 'Fuerte';
+        progress = 0.8;
+        break;
+      case 5:
+        barColor = Colors.green;
+        strengthText = 'Muy fuerte';
+        progress = 1.0;
+        break;
+      default:
+        barColor = Colors.grey;
+        strengthText = '';
+        progress = 0.0;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: Colors.grey.shade300,
+                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                  minHeight: 8,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              strengthText,
+              style: GoogleFonts.montserrat(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: barColor,
+              ),
+            ),
+          ],
+        ),
+        if (strength < 5) ...[
+          const SizedBox(height: 4),
+          Text(
+            _getPasswordStrengthHint(password),
+            style: GoogleFonts.montserrat(
+              fontSize: 11,
+              color: Colors.grey.shade600,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _getPasswordStrengthHint(String password) {
+    
+    if (password.length < 8) {
+      return 'Agrega más caracteres (mínimo 8)';
+    }
+    if (!password.contains(RegExp(r'[A-Z]'))) {
+      return 'Agrega al menos una letra mayúscula';
+    }
+    if (!password.contains(RegExp(r'[a-z]'))) {
+      return 'Agrega al menos una letra minúscula';
+    }
+    if (!password.contains(RegExp(r'[0-9]'))) {
+      return 'Agrega al menos un número';
+    }
+    if (!password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'))) {
+      return 'Agrega al menos un carácter especial (!@#\$%^&*...)';
+    }
+    
+    return '';
   }
 
   Widget _buildSectionTitle(String title) {

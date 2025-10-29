@@ -214,9 +214,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F7FB),
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (bool didPop) async {
+        if (didPop) return;
+        
+        // Cerrar sesión automáticamente
+        await _storageService.logout();
+        
+        // Mostrar diálogo informativo (no bloqueante)
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: Text(
+                'Sesión cerrada',
+                style: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+              ),
+              content: Text(
+                'Tu sesión se ha cerrado por seguridad. Serás redirigido al inicio de sesión.',
+                style: GoogleFonts.montserrat(),
+              ),
+            ),
+          );
+          
+          // Esperar un momento y redirigir al login
+          await Future.delayed(const Duration(milliseconds: 3000));
+          if (context.mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+            );
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF6F7FB),
+        appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
         titleSpacing: 24,
@@ -353,6 +388,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           },
         ),
       ),
+      ), // Cierre del PopScope
     );
   }
 }

@@ -52,14 +52,18 @@ class StorageService {
   // Token de autenticación actual
   String? _authToken;
   User? _currentUser;
+  String? _sessionId; // ID único de sesión
+  Timer? _sessionCheckTimer; // Timer para verificar sesión
 
   static const String _tokenStorageKey = 'aquatour_auth_token';
   static const String _userStorageKey = 'aquatour_current_user';
   static const String _lastActivityStorageKey = 'aquatour_last_activity';
+  static const String _sessionIdStorageKey = 'aquatour_session_id';
   static const String _dashboardOrderPrefix = 'aquatour_dashboard_order_';
   static const String _clientsStorageKey = 'aquatour_clients';
   static const String _reservationsStorageKey = 'aquatour_reservations';
   static const Duration _sessionTimeout = Duration(minutes: 10);
+  static const Duration _sessionCheckInterval = Duration(seconds: 2);
 
   final StreamController<List<Client>> _clientsController = StreamController<List<Client>>.broadcast();
   final StreamController<List<Reservation>> _reservationsController = StreamController<List<Reservation>>.broadcast();
@@ -184,6 +188,7 @@ class StorageService {
   void clearAuthToken() {
     _authToken = null;
     _currentUser = null;
+    _sessionId = null;
     _clearSessionStorage();
   }
 
@@ -216,8 +221,12 @@ class StorageService {
 
       if (userData != null) {
         _currentUser = User.fromMap(userData);
+        // Generar nuevo sessionId único
+        _sessionId = _generateSessionId();
         _persistSession();
+        _startSessionCheck(); // Iniciar verificación periódica
         print('👤 Usuario autenticado: ${_currentUser!.nombreCompleto}');
+        print('🔐 Session ID: $_sessionId');
         return _currentUser;
       }
 
@@ -233,9 +242,11 @@ class StorageService {
   Future<void> logout() async {
     try {
       final token = _authToken;
+      _stopSessionCheck(); // Detener verificación
       _clearSessionStorage();
       _authToken = null;
       _currentUser = null;
+      _sessionId = null;
 
       if (token != null) {
         await _apiService.logout(token);
@@ -245,9 +256,11 @@ class StorageService {
     } catch (e) {
       print('⚠️ Error en logout: $e');
       // Aun así limpiamos el estado local
+      _stopSessionCheck();
       _clearSessionStorage();
       _authToken = null;
       _currentUser = null;
+      _sessionId = null;
     }
   }
 
@@ -1059,6 +1072,12 @@ class StorageService {
     if (_currentUser != null) {
       html.window.localStorage[_userStorageKey] = jsonEncode(_currentUser!.toMap());
     }
+    if (_sessionId != null) {
+      // Usar sessionStorage para que sea único por pestaña
+      html.window.sessionStorage[_sessionIdStorageKey] = _sessionId!;
+      // También guardar en localStorage para detectar nuevas pestañas
+      html.window.localStorage[_sessionIdStorageKey] = _sessionId!;
+    }
     if (_authToken != null || _currentUser != null) {
       _refreshLastActivity();
     }
@@ -1092,6 +1111,16 @@ class StorageService {
   void _restoreSession() {
     if (!kIsWeb) return;
 
+    // Verificar si esta pestaña tiene un sessionId en sessionStorage
+    final sessionStorageId = html.window.sessionStorage[_sessionIdStorageKey];
+    
+    // Si NO hay sessionId en sessionStorage, es una nueva pestaña
+    if (sessionStorageId == null || sessionStorageId.isEmpty) {
+      print('🆕 Nueva pestaña detectada - requiere inicio de sesión');
+      _clearSessionStorage();
+      return;
+    }
+
     final lastActivity = html.window.localStorage[_lastActivityStorageKey];
     if (_isSessionExpired(lastActivity)) {
       _clearSessionStorage();
@@ -1115,8 +1144,13 @@ class StorageService {
       }
     }
 
-    if (_authToken != null && _currentUser != null) {
+    // Restaurar el sessionId de sessionStorage (único por pestaña)
+    _sessionId = sessionStorageId;
+
+    if (_authToken != null && _currentUser != null && _sessionId != null) {
       _refreshLastActivity();
+      _startSessionCheck(); // Iniciar verificación al restaurar sesión
+      print('✅ Sesión restaurada en pestaña existente');
     }
   }
 
@@ -1125,5 +1159,62 @@ class StorageService {
     html.window.localStorage.remove(_tokenStorageKey);
     html.window.localStorage.remove(_userStorageKey);
     html.window.localStorage.remove(_lastActivityStorageKey);
+    html.window.localStorage.remove(_sessionIdStorageKey);
+    html.window.sessionStorage.remove(_sessionIdStorageKey);
+  }
+
+  // ===== SISTEMA DE SESIÓN ÚNICA =====
+
+  /// Genera un ID único de sesión
+  String _generateSessionId() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = (timestamp * 1000 + (timestamp % 1000)).toString();
+    return '$timestamp-$random';
+  }
+
+  /// Inicia la verificación periódica de sesión
+  void _startSessionCheck() {
+    _stopSessionCheck(); // Detener cualquier timer existente
+    _sessionCheckTimer = Timer.periodic(_sessionCheckInterval, (_) {
+      _checkSessionValidity();
+    });
+  }
+
+  /// Detiene la verificación periódica de sesión
+  void _stopSessionCheck() {
+    _sessionCheckTimer?.cancel();
+    _sessionCheckTimer = null;
+  }
+
+  /// Verifica si la sesión actual sigue siendo válida
+  void _checkSessionValidity() {
+    if (!kIsWeb) return;
+    if (_sessionId == null) return;
+
+    final localStorageSessionId = html.window.localStorage[_sessionIdStorageKey];
+    final sessionStorageId = html.window.sessionStorage[_sessionIdStorageKey];
+    
+    // Si el sessionId en localStorage cambió, significa que se inició sesión en otra pestaña
+    if (localStorageSessionId != _sessionId) {
+      print('⚠️ Sesión invalidada: se detectó inicio de sesión en otra pestaña');
+      _forceLogout();
+      return;
+    }
+    
+    // Si el sessionStorage no tiene el sessionId, esta pestaña fue "limpiada"
+    if (sessionStorageId == null || sessionStorageId != _sessionId) {
+      print('⚠️ Sesión invalidada: sessionStorage modificado');
+      _forceLogout();
+    }
+  }
+
+  /// Fuerza el cierre de sesión sin llamar al backend
+  void _forceLogout() {
+    _stopSessionCheck();
+    _authToken = null;
+    _currentUser = null;
+    _sessionId = null;
+    // No limpiamos el storage para que la otra pestaña mantenga su sesión
+    print('🔒 Sesión cerrada forzosamente');
   }
 }

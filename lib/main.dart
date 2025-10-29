@@ -132,6 +132,31 @@ class _SessionGateState extends State<_SessionGate> {
   void initState() {
     super.initState();
     _evaluateSession();
+    _startSessionMonitoring();
+    _setupBeforeUnloadListener();
+  }
+
+  @override
+  void dispose() {
+    _stopSessionMonitoring();
+    _removeBeforeUnloadListener();
+    super.dispose();
+  }
+
+  // Configurar listener para detectar cuando el usuario intenta salir
+  void _setupBeforeUnloadListener() {
+    if (kIsWeb) {
+      html.window.onBeforeUnload.listen((event) {
+        // Cerrar sesión cuando el usuario sale de la aplicación
+        if (_destination != null) {
+          _storageService.logout();
+        }
+      });
+    }
+  }
+
+  void _removeBeforeUnloadListener() {
+    // El listener se limpia automáticamente
   }
 
   Future<void> _evaluateSession() async {
@@ -146,6 +171,43 @@ class _SessionGateState extends State<_SessionGate> {
             : const LimitedDashboardScreen();
       }
     });
+  }
+
+  // Monitoreo de sesión cada 2 segundos
+  void _startSessionMonitoring() {
+    Future.delayed(const Duration(seconds: 2), _checkSession);
+  }
+
+  void _stopSessionMonitoring() {
+    // El timer se detiene automáticamente cuando el widget se destruye
+  }
+
+  Future<void> _checkSession() async {
+    if (!mounted) return;
+
+    final user = await _storageService.getCurrentUser();
+    
+    // Si teníamos un usuario y ahora no, la sesión fue invalidada
+    if (_destination != null && user == null) {
+      if (mounted) {
+        setState(() {
+          _destination = null;
+        });
+        // Mostrar mensaje
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sesión cerrada: se detectó inicio de sesión en otra pestaña'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+
+    // Continuar monitoreando
+    if (mounted) {
+      _startSessionMonitoring();
+    }
   }
 
   @override

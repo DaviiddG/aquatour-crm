@@ -20,6 +20,12 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _ocultarClave = true;
   final StorageService _storageService = StorageService(); // Instancia del servicio
   bool _isLoading = false;
+  
+  // Control de intentos de login
+  static const int _maxLoginAttempts = 5;
+  static const Duration _lockoutDuration = Duration(minutes: 15);
+  int _failedAttempts = 0;
+  DateTime? _lockoutUntil;
 
   @override
   void dispose() {
@@ -30,6 +36,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _iniciarSesion() async {
     if (!_claveFormulario.currentState!.validate()) return;
+
+    // Verificar si la cuenta está bloqueada
+    if (_lockoutUntil != null && DateTime.now().isBefore(_lockoutUntil!)) {
+      final remainingMinutes = _lockoutUntil!.difference(DateTime.now()).inMinutes + 1;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cuenta bloqueada temporalmente. Intenta de nuevo en $remainingMinutes minuto(s).'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      return;
+    }
+
+    // Si el bloqueo expiró, resetear intentos
+    if (_lockoutUntil != null && DateTime.now().isAfter(_lockoutUntil!)) {
+      setState(() {
+        _lockoutUntil = null;
+        _failedAttempts = 0;
+      });
+    }
 
     try {
       setState(() => _isLoading = true);
@@ -44,14 +71,15 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = false);
 
       if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No fue posible iniciar sesión. Verifica las credenciales.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _handleFailedLogin('No fue posible iniciar sesión. Verifica las credenciales.');
         return;
       }
+
+      // Login exitoso - resetear intentos
+      setState(() {
+        _failedAttempts = 0;
+        _lockoutUntil = null;
+      });
 
       final destination = user.esAdministrador
           ? const DashboardScreen()
@@ -75,13 +103,30 @@ class _LoginScreenState extends State<LoginScreen> {
         errorMessage = 'Error iniciando sesión: $e';
       }
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _handleFailedLogin(errorMessage);
     }
+  }
+
+  void _handleFailedLogin(String errorMessage) {
+    setState(() {
+      _failedAttempts++;
+      
+      if (_failedAttempts >= _maxLoginAttempts) {
+        _lockoutUntil = DateTime.now().add(_lockoutDuration);
+        errorMessage = '⚠️ Demasiados intentos fallidos. Cuenta bloqueada por ${_lockoutDuration.inMinutes} minutos.';
+      } else {
+        final remainingAttempts = _maxLoginAttempts - _failedAttempts;
+        errorMessage = '$errorMessage\nIntentos restantes: $remainingAttempts';
+      }
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(errorMessage),
+        backgroundColor: _failedAttempts >= _maxLoginAttempts ? Colors.red : Colors.orange,
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
 
   @override
@@ -141,11 +186,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 32),
                         Semantics(
-                          label: 'Usuario o correo',
+                          label: 'Correo electrónico',
                           child: TextFormField(
                             controller: _controladorUsuario,
                             decoration: InputDecoration(
-                              labelText: 'Usuario o correo',
+                              labelText: 'Correo electrónico',
                               prefixIcon: const Icon(Icons.person_outline),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
