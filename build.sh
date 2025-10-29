@@ -5,8 +5,8 @@ export PATH="$PATH:`pwd`/flutter/bin"
 
 # Verificar si Flutter ya está descargado
 if [ ! -d "flutter" ]; then
-    echo "Descargando Flutter 3.27.1 (stable)..."
-    curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.27.1-stable.tar.xz | tar xJ
+    echo "Descargando Flutter 3.35.4 (stable)..."
+    curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.35.4-stable.tar.xz | tar xJ
 fi
 
 # Configurar Git
