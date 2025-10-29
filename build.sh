@@ -5,8 +5,8 @@ export PATH="$PATH:`pwd`/flutter/bin"
 
 # Verificar si Flutter ya está descargado
 if [ ! -d "flutter" ]; then
-    echo "Descargando Flutter..."
-    curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.1-stable.tar.xz | tar xJ
+    echo "Descargando Flutter 3.24.5 (stable)..."
+    curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz | tar xJ
 fi
 
 # Configurar Git
@@ -16,14 +16,17 @@ git config --global --add safe.directory /vercel/path0/flutter
 echo "Verificando la instalación de Flutter..."
 flutter --version
 
+# Deshabilitar analytics para evitar problemas
+flutter config --no-analytics
+
 # Limpiar y obtener dependencias
 echo "Obteniendo dependencias..."
 flutter clean
 flutter pub get
 
-# Construir la aplicación
+# Construir la aplicación con configuraciones específicas
 echo "Construyendo la aplicación para web..."
-flutter build web --release
+flutter build web --release --web-renderer canvaskit --no-tree-shake-icons
 
 # Verificar que el directorio de salida existe
 if [ -d "build/web" ]; then
