@@ -2,5 +2,6 @@
   "version": 2,
   "buildCommand": "chmod +x build.sh && ./build.sh",
   "outputDirectory": "build/web",
-  "framework": null
+  "framework": null,
+  "installCommand": "echo 'Skipping default install, using build.sh instead'"
 }
