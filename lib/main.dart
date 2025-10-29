@@ -7,7 +7,6 @@ import 'package:aquatour/login_screen.dart';
 import 'package:aquatour/dashboard_screen.dart';
 import 'package:aquatour/limited_dashboard_screen.dart';
 import 'package:aquatour/services/storage_service.dart';
-import 'dart:html' as html;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,10 +40,7 @@ void main() async {
     print('✅ Servicios de API inicializados correctamente');
   } catch (e) {
     print('⚠️ Error inicializando servicios de API: $e');
-    // Forzar recarga en caso de error
-    if (kIsWeb) {
-      html.window.location.reload();
-    }
+    // En caso de error, la app continuará pero puede haber problemas de conectividad
   }
   
   runApp(const MyApp());
@@ -133,30 +129,12 @@ class _SessionGateState extends State<_SessionGate> {
     super.initState();
     _evaluateSession();
     _startSessionMonitoring();
-    _setupBeforeUnloadListener();
   }
 
   @override
   void dispose() {
     _stopSessionMonitoring();
-    _removeBeforeUnloadListener();
     super.dispose();
-  }
-
-  // Configurar listener para detectar cuando el usuario intenta salir
-  void _setupBeforeUnloadListener() {
-    if (kIsWeb) {
-      html.window.onBeforeUnload.listen((event) {
-        // Cerrar sesión cuando el usuario sale de la aplicación
-        if (_destination != null) {
-          _storageService.logout();
-        }
-      });
-    }
-  }
-
-  void _removeBeforeUnloadListener() {
-    // El listener se limpia automáticamente
   }
 
   Future<void> _evaluateSession() async {
