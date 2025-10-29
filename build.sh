@@ -26,7 +26,7 @@ flutter pub get
 
 # Construir la aplicación con configuraciones específicas
 echo "Construyendo la aplicación para web..."
-flutter build web --release --web-renderer canvaskit --no-tree-shake-icons
+flutter build web --release
 
 # Verificar que el directorio de salida existe
 if [ -d "build/web" ]; then
