@@ -27,8 +27,8 @@ dependencies:
   # Visualizaciones y gráficas
   fl_chart: ^0.68.0
   equatable: ^2.0.5
-  # Internacionalización
-  intl: ^0.20.2
+  # Internacionalización (flexible para diferentes versiones de Flutter)
+  intl: any
 
 dev_dependencies:
   flutter_test:
