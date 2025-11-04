@@ -209,4 +209,20 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// Eliminar todos los logs de acceso
+router.delete('/', async (req, res) => {
+  try {
+    const sql = 'DELETE FROM access_logs';
+    await query(sql);
+    
+    res.json({ 
+      message: 'Todos los registros de acceso han sido eliminados exitosamente',
+      success: true 
+    });
+  } catch (error) {
+    console.error('Error al eliminar logs de acceso:', error);
+    res.status(500).json({ error: 'Error al eliminar logs de acceso' });
+  }
+});
+
 export default router;

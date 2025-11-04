@@ -129,6 +129,9 @@ class _LoginScreenState extends State<LoginScreen> {
         final navegador = _getBrowserInfo();
         final sistemaOperativo = _getOSInfo();
         
+        debugPrint('🔐 Registrando acceso - Usuario: ${user.nombre} ${user.apellido}');
+        debugPrint('📍 IP: $ipAddress, Navegador: $navegador, SO: $sistemaOperativo');
+        
         final logId = await AccessLogService.logLogin(
           usuario: user,
           ipAddress: ipAddress,
@@ -139,9 +142,13 @@ class _LoginScreenState extends State<LoginScreen> {
         // Guardar el ID del log para usarlo al cerrar sesión
         if (logId != null) {
           await _storageService.saveAccessLogId(logId);
+          debugPrint('✅ Acceso registrado con ID: $logId');
+        } else {
+          debugPrint('⚠️ No se pudo obtener ID del log de acceso');
         }
-      } catch (e) {
-        debugPrint('Error al registrar acceso: $e');
+      } catch (e, stackTrace) {
+        debugPrint('❌ Error al registrar acceso: $e');
+        debugPrint('Stack trace: $stackTrace');
         // No bloqueamos el login si falla el registro
       }
 

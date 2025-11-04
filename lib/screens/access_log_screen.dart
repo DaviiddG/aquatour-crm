@@ -89,6 +89,90 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
     _loadLogs();
   }
 
+  Future<void> _deleteAllLogs() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmar eliminación', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '¿Estás seguro de que deseas eliminar TODOS los registros de acceso?',
+              style: GoogleFonts.montserrat(),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.red[700]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Esta acción NO se puede deshacer',
+                      style: GoogleFonts.montserrat(
+                        color: Colors.red[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: GoogleFonts.montserrat()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Eliminar Todo', style: GoogleFonts.montserrat(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await AccessLogService.deleteAllAccessLogs();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Todos los registros han sido eliminados', style: GoogleFonts.montserrat()),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadLogs();
+        }
+      } catch (e) {
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al eliminar registros: $e', style: GoogleFonts.montserrat()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   List<AccessLog> get _filteredLogs {
     if (_searchQuery.isEmpty) return _accessLogs;
     
@@ -122,6 +206,12 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
           icon: const Icon(Icons.refresh),
           onPressed: _loadLogs,
           tooltip: 'Recargar',
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete_forever),
+          onPressed: _deleteAllLogs,
+          tooltip: 'Eliminar todos los registros',
+          color: Colors.red,
         ),
       ],
       child: _isLoading

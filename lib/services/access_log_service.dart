@@ -120,4 +120,21 @@ class AccessLogService {
       return [];
     }
   }
+
+  // Eliminar todos los logs de acceso
+  static Future<void> deleteAllAccessLogs() async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/access-logs'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Error al eliminar logs: ${response.body}');
+      }
+    } catch (e) {
+      print('Error al eliminar todos los logs: $e');
+      rethrow;
+    }
+  }
 }
