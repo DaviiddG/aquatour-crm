@@ -6,7 +6,7 @@ import '../models/user.dart';
 class AuditService {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8080/api',
+    defaultValue: 'https://app-6aaf68d8-72ab-47f4-bad2-13d5ab31d374.cleverapps.io/api',
   );
 
   // Registrar una acción de auditoría
