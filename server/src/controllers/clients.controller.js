@@ -6,6 +6,7 @@ import {
   updateClient,
   deleteClient,
 } from '../services/clients.service.js';
+import { createAuditLog } from '../services/audit.service.js';
 
 export const getClients = async (_req, res, next) => {
   try {
@@ -57,6 +58,31 @@ export const updateClientController = async (req, res, next) => {
 
     if (!updatedClient) {
       return res.status(404).json({ ok: false, error: 'Cliente no encontrado' });
+    }
+
+    // Registrar en auditoría
+    if (req.body.audit) {
+      try {
+        await createAuditLog({
+          id_usuario: req.body.audit.id_usuario,
+          nombre_usuario: req.body.audit.nombre_usuario,
+          rol_usuario: req.body.audit.rol_usuario,
+          accion: 'Editar',
+          entidad: 'Cliente',
+          id_entidad: parseInt(idCliente),
+          nombre_entidad: `${updatedClient.nombre} ${updatedClient.apellido}`,
+          categoria: req.body.audit.categoria || 'administrador',
+          detalles: JSON.stringify({
+            nombre: updatedClient.nombre,
+            apellido: updatedClient.apellido,
+            email: updatedClient.email,
+            telefono: updatedClient.telefono,
+            origen: updatedClient.origen
+          })
+        });
+      } catch (auditError) {
+        console.error('Error al registrar auditoría:', auditError);
+      }
     }
 
     res.json({ ok: true, client: updatedClient });

@@ -225,16 +225,16 @@ class _ClientListScreenState extends State<ClientListScreen> {
                 if (clientId == 0) {
                   throw Exception('ID de cliente inválido');
                 }
-                await ApiService().updateClient(clientId, clientMap, _token);
                 
-                // Registrar en auditoría
-                await AuditService.logAction(
-                  usuario: currentUser,
-                  accion: AuditAction.editarCliente,
-                  entidad: 'Cliente',
-                  idEntidad: clientId,
-                  nombreEntidad: '${client.nombres} ${client.apellidos}',
-                );
+                // Agregar datos de auditoría a la petición
+                clientMap['audit'] = {
+                  'id_usuario': currentUser.idUsuario,
+                  'nombre_usuario': '${currentUser.nombre} ${currentUser.apellido}',
+                  'rol_usuario': currentUser.rol.displayName,
+                  'categoria': currentUser.esAdministrador ? 'administrador' : 'asesor',
+                };
+                
+                await ApiService().updateClient(clientId, clientMap, _token);
               }
 
               // Recargar lista de clientes
