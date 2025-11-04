@@ -13,6 +13,7 @@ import '../models/reservation.dart';
 import '../models/tour_package.dart';
 import '../models/user.dart';
 import 'api_service.dart';
+import 'access_log_service.dart';
 
 class StorageService {
   static final StorageService _instance = StorageService._internal();
@@ -241,6 +242,17 @@ class StorageService {
 
   Future<void> logout() async {
     try {
+      // Registrar salida en el log de acceso
+      final accessLogId = await getAccessLogId();
+      if (accessLogId != null) {
+        try {
+          await AccessLogService.logLogout(accessLogId);
+          await removeAccessLogId();
+        } catch (e) {
+          print('⚠️ Error al registrar salida: $e');
+        }
+      }
+
       final token = _authToken;
       _stopSessionCheck(); // Detener verificación
       _clearSessionStorage();
@@ -261,6 +273,34 @@ class StorageService {
       _authToken = null;
       _currentUser = null;
       _sessionId = null;
+    }
+  }
+
+  // Métodos para gestionar el ID del log de acceso
+  Future<void> saveAccessLogId(int logId) async {
+    try {
+      html.window.localStorage['access_log_id'] = logId.toString();
+      print('💾 ID de log de acceso guardado: $logId');
+    } catch (e) {
+      print('⚠️ Error al guardar ID de log de acceso: $e');
+    }
+  }
+
+  Future<int?> getAccessLogId() async {
+    try {
+      final value = html.window.localStorage['access_log_id'];
+      return value != null ? int.tryParse(value) : null;
+    } catch (e) {
+      print('⚠️ Error al obtener ID de log de acceso: $e');
+      return null;
+    }
+  }
+
+  Future<void> removeAccessLogId() async {
+    try {
+      html.window.localStorage.remove('access_log_id');
+    } catch (e) {
+      print('⚠️ Error al eliminar ID de log de acceso: $e');
     }
   }
 

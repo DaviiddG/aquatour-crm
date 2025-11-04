@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/user.dart';
 import '../services/storage_service.dart';
+import '../services/audit_service.dart';
+import '../models/audit_log.dart';
 import '../widgets/unsaved_changes_dialog.dart';
 
 class UserEditScreen extends StatefulWidget {
@@ -242,6 +244,33 @@ class _UserEditScreenState extends State<UserEditScreen> {
         await _storageService.insertUser(user);
       } else {
         await _storageService.updateUser(user);
+      }
+      
+      // Registrar en auditoría
+      final currentUser = await _storageService.getCurrentUser();
+      if (currentUser != null) {
+        // Si se cambió la contraseña
+        if (widget.user != null && _contrasenaController.text.isNotEmpty) {
+          await AuditService.logAction(
+            usuario: currentUser,
+            accion: AuditAction.cambiarContrasena,
+            entidad: 'Usuario',
+            idEntidad: user.idUsuario,
+            nombreEntidad: '${user.nombre} ${user.apellido}',
+          );
+        }
+        
+        await AuditService.logAction(
+          usuario: currentUser,
+          accion: widget.user == null ? AuditAction.crearUsuario : AuditAction.editarUsuario,
+          entidad: 'Usuario',
+          idEntidad: user.idUsuario,
+          nombreEntidad: '${user.nombre} ${user.apellido}',
+          detalles: {
+            'rol': user.rol.displayName,
+            'email': user.email,
+          },
+        );
       }
 
       setState(() => _hasUnsavedChanges = false);

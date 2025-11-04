@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/destination.dart';
 import '../services/storage_service.dart';
+import '../services/audit_service.dart';
+import '../models/audit_log.dart';
 import '../data/countries_cities.dart';
 import '../widgets/unsaved_changes_dialog.dart';
 
@@ -88,6 +90,18 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
       );
 
       await _storageService.saveDestination(destination);
+      
+      // Registrar en auditoría
+      final currentUser = await _storageService.getCurrentUser();
+      if (currentUser != null) {
+        await AuditService.logAction(
+          usuario: currentUser,
+          accion: widget.destination == null ? AuditAction.crearDestino : AuditAction.editarDestino,
+          entidad: 'Destino',
+          idEntidad: destination.id,
+          nombreEntidad: '${destination.ciudad}, ${destination.pais}',
+        );
+      }
       
       // Resetear el flag de cambios sin guardar
       setState(() {

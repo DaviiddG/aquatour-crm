@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:aquatour/models/user.dart';
 import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/services/audit_service.dart';
+import 'package:aquatour/models/audit_log.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
 import 'package:aquatour/utils/password_validator.dart';
 
@@ -158,6 +161,36 @@ class _UserEditScreenState extends State<UserEditScreen>
       setState(() => _isSaving = false);
 
       if (success) {
+        // Registrar en auditoría
+        final currentUser = await widget.storageService.getCurrentUser();
+        if (currentUser != null) {
+          // Determinar si se cambió la contraseña
+          final passwordChanged = _passwordController.text.isNotEmpty;
+          
+          if (passwordChanged) {
+            await AuditService.logAction(
+              usuario: currentUser,
+              accion: AuditAction.cambiarContrasena,
+              entidad: 'Usuario',
+              idEntidad: updatedUser.idUsuario,
+              nombreEntidad: '${updatedUser.nombre} ${updatedUser.apellido}',
+            );
+          }
+          
+          await AuditService.logAction(
+            usuario: currentUser,
+            accion: AuditAction.editarUsuario,
+            entidad: 'Usuario',
+            idEntidad: updatedUser.idUsuario,
+            nombreEntidad: '${updatedUser.nombre} ${updatedUser.apellido}',
+            detalles: {
+              'rol': updatedUser.rol.displayName,
+              'email': updatedUser.email,
+              'activo': updatedUser.activo.toString(),
+            },
+          );
+        }
+        
         await widget.onUpdated();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models/quote.dart';
@@ -6,7 +7,10 @@ import '../models/client.dart';
 import '../models/tour_package.dart';
 import '../models/companion.dart';
 import '../services/storage_service.dart';
+import '../services/audit_service.dart';
+import '../models/audit_log.dart';
 import '../utils/number_formatter.dart';
+import '../data/countries_cities.dart';
 import '../widgets/unsaved_changes_dialog.dart';
 
 class QuoteEditScreen extends StatefulWidget {
@@ -210,6 +214,20 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
       );
 
       await _storageService.saveQuote(quote);
+      
+      // Registrar en auditoría
+      await AuditService.logAction(
+        usuario: currentUser,
+        accion: widget.quote == null ? AuditAction.crearCotizacion : AuditAction.editarCotizacion,
+        entidad: 'Cotización',
+        idEntidad: quote.id,
+        nombreEntidad: quote.id != null ? 'Cotización #${quote.id}' : 'Nueva cotización',
+        detalles: {
+          'cliente_id': _selectedClientId.toString(),
+          'precio': _precioEstimado.toString(),
+          'fecha_inicio': _fechaInicio!.toIso8601String(),
+        },
+      );
       
       // Resetear el flag de cambios sin guardar
       setState(() {
@@ -644,9 +662,19 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
   }
 
   void _addAcompanante() async {
+    // Obtener nacionalidad del cliente seleccionado
+    String? clientNationality;
+    if (_selectedClientId != null) {
+      final client = _clients.firstWhere((c) => c.id == _selectedClientId);
+      clientNationality = client.pais;
+    }
+    
     final result = await showDialog<Companion>(
       context: context,
-      builder: (context) => _CompanionDialog(),
+      builder: (context) => _CompanionDialog(
+        defaultNationality: clientNationality,
+        existingCompanions: _acompanantes,
+      ),
     );
     if (result != null) {
       setState(() {
@@ -657,9 +685,24 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
   }
 
   void _editAcompanante(int index) async {
+    // Obtener nacionalidad del cliente seleccionado
+    String? clientNationality;
+    if (_selectedClientId != null) {
+      final client = _clients.firstWhere((c) => c.id == _selectedClientId);
+      clientNationality = client.pais;
+    }
+    
+    // Excluir el acompañante actual de la validación
+    final otherCompanions = List<Companion>.from(_acompanantes)
+      ..removeAt(index);
+    
     final result = await showDialog<Companion>(
       context: context,
-      builder: (context) => _CompanionDialog(companion: _acompanantes[index]),
+      builder: (context) => _CompanionDialog(
+        companion: _acompanantes[index],
+        defaultNationality: clientNationality,
+        existingCompanions: otherCompanions,
+      ),
     );
     if (result != null) {
       setState(() {
@@ -680,8 +723,14 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
 // Dialog para agregar/editar acompañante
 class _CompanionDialog extends StatefulWidget {
   final Companion? companion;
+  final String? defaultNationality;
+  final List<Companion> existingCompanions;
 
-  const _CompanionDialog({this.companion});
+  const _CompanionDialog({
+    this.companion,
+    this.defaultNationality,
+    this.existingCompanions = const [],
+  });
 
   @override
   State<_CompanionDialog> createState() => _CompanionDialogState();
@@ -692,9 +741,10 @@ class _CompanionDialogState extends State<_CompanionDialog> {
   late TextEditingController _nombresController;
   late TextEditingController _apellidosController;
   late TextEditingController _documentoController;
-  late TextEditingController _nacionalidadController;
+  String? _selectedNationality;
   DateTime? _fechaNacimiento;
   bool _esMenor = false;
+  String? _documentError;
 
   @override
   void initState() {
@@ -702,9 +752,12 @@ class _CompanionDialogState extends State<_CompanionDialog> {
     _nombresController = TextEditingController(text: widget.companion?.nombres ?? '');
     _apellidosController = TextEditingController(text: widget.companion?.apellidos ?? '');
     _documentoController = TextEditingController(text: widget.companion?.documento ?? '');
-    _nacionalidadController = TextEditingController(text: widget.companion?.nacionalidad ?? 'Perú');
+    _selectedNationality = widget.companion?.nacionalidad ?? widget.defaultNationality ?? 'Colombia';
     _fechaNacimiento = widget.companion?.fechaNacimiento;
     _esMenor = widget.companion?.esMenor ?? false;
+    
+    // Listener para validar documento
+    _documentoController.addListener(_validateDocument);
   }
 
   @override
@@ -712,8 +765,29 @@ class _CompanionDialogState extends State<_CompanionDialog> {
     _nombresController.dispose();
     _apellidosController.dispose();
     _documentoController.dispose();
-    _nacionalidadController.dispose();
     super.dispose();
+  }
+
+  void _validateDocument() {
+    final documento = _documentoController.text.trim();
+    if (documento.isEmpty) {
+      setState(() => _documentError = null);
+      return;
+    }
+    
+    // Buscar si el documento ya existe
+    final duplicate = widget.existingCompanions.firstWhere(
+      (c) => c.documento?.trim().toLowerCase() == documento.toLowerCase(),
+      orElse: () => Companion(nombres: '', apellidos: ''),
+    );
+    
+    if (duplicate.nombres.isNotEmpty) {
+      setState(() {
+        _documentError = 'Este documento ya está registrado para ${duplicate.nombres} ${duplicate.apellidos}';
+      });
+    } else {
+      setState(() => _documentError = null);
+    }
   }
 
   Future<void> _selectDate() async {
@@ -734,21 +808,36 @@ class _CompanionDialogState extends State<_CompanionDialog> {
     if (picked != null) {
       setState(() {
         _fechaNacimiento = picked;
-        // Calcular si es menor automáticamente
-        final edad = DateTime.now().year - picked.year;
-        _esMenor = edad < 18;
+        // Calcular si es menor automáticamente basado en fecha exacta
+        final today = DateTime.now();
+        int age = today.year - picked.year;
+        if (today.month < picked.month || (today.month == picked.month && today.day < picked.day)) {
+          age--;
+        }
+        _esMenor = age < 18;
       });
     }
   }
 
   void _save() {
     if (!_formKey.currentState!.validate()) return;
+    
+    // Validar que no haya error de documento
+    if (_documentError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_documentError!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     final companion = Companion(
       nombres: _nombresController.text.trim(),
       apellidos: _apellidosController.text.trim(),
       documento: _documentoController.text.trim().isEmpty ? null : _documentoController.text.trim(),
-      nacionalidad: _nacionalidadController.text.trim().isEmpty ? null : _nacionalidadController.text.trim(),
+      nacionalidad: _selectedNationality,
       fechaNacimiento: _fechaNacimiento,
       esMenor: _esMenor,
     );
@@ -804,17 +893,32 @@ class _CompanionDialogState extends State<_CompanionDialog> {
                     labelStyle: GoogleFonts.montserrat(fontSize: 13),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     prefixIcon: const Icon(Icons.badge, size: 20),
+                    errorText: _documentError,
+                    errorMaxLines: 2,
                   ),
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _nacionalidadController,
+                DropdownButtonFormField<String>(
+                  value: _selectedNationality,
                   decoration: InputDecoration(
                     labelText: 'Nacionalidad (Opcional)',
                     labelStyle: GoogleFonts.montserrat(fontSize: 13),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     prefixIcon: const Icon(Icons.flag, size: 20),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
+                  items: getCountries().map((country) {
+                    return DropdownMenuItem<String>(
+                      value: country,
+                      child: Text(
+                        country,
+                        style: GoogleFonts.montserrat(fontSize: 14),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() => _selectedNationality = value);
+                  },
                 ),
                 const SizedBox(height: 16),
                 InkWell(
@@ -839,9 +943,23 @@ class _CompanionDialogState extends State<_CompanionDialog> {
                 ),
                 const SizedBox(height: 16),
                 CheckboxListTile(
-                  title: Text('Es menor de edad', style: GoogleFonts.montserrat(fontSize: 13)),
+                  title: Text(
+                    'Es menor de edad',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 13,
+                      color: _fechaNacimiento != null ? Colors.grey : Colors.black87,
+                    ),
+                  ),
+                  subtitle: _fechaNacimiento != null
+                      ? Text(
+                          'Calculado automáticamente según fecha de nacimiento',
+                          style: GoogleFonts.montserrat(fontSize: 11, color: Colors.grey[600]),
+                        )
+                      : null,
                   value: _esMenor,
-                  onChanged: (value) => setState(() => _esMenor = value ?? false),
+                  onChanged: _fechaNacimiento != null
+                      ? null // Deshabilitar si hay fecha de nacimiento
+                      : (value) => setState(() => _esMenor = value ?? false),
                   activeColor: const Color(0xFF3D1F6E),
                   contentPadding: EdgeInsets.zero,
                 ),

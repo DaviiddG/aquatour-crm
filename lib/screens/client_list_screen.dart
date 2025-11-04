@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:aquatour/widgets/module_scaffold.dart';
-import 'package:aquatour/screens/client_edit_screen.dart';
-import 'package:aquatour/services/api_service.dart';
-import 'package:aquatour/services/storage_service.dart';
-import 'package:aquatour/models/user.dart';
+import 'package:intl/intl.dart';
+import '../models/client.dart';
+import '../models/user.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
+import '../services/audit_service.dart';
+import '../models/audit_log.dart';
+import '../widgets/module_scaffold.dart';
 import 'package:aquatour/utils/permissions_helper.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'client_edit_screen.dart';
 
 enum _ClientFormResult { created, updated, none }
 
@@ -203,6 +207,18 @@ class _ClientListScreenState extends State<ClientListScreen> {
               if (clientData == null) {
                 // Crear nuevo cliente
                 await ApiService().createClient(clientMap, _token);
+                
+                // Registrar en auditoría
+                await AuditService.logAction(
+                  usuario: currentUser,
+                  accion: AuditAction.crearCliente,
+                  entidad: 'Cliente',
+                  nombreEntidad: '${client.nombres} ${client.apellidos}',
+                  detalles: {
+                    'telefono': client.telefono,
+                    'email': client.email,
+                  },
+                );
               } else {
                 // Actualizar cliente existente
                 final clientId = clientData['id'] ?? 0;
@@ -210,6 +226,15 @@ class _ClientListScreenState extends State<ClientListScreen> {
                   throw Exception('ID de cliente inválido');
                 }
                 await ApiService().updateClient(clientId, clientMap, _token);
+                
+                // Registrar en auditoría
+                await AuditService.logAction(
+                  usuario: currentUser,
+                  accion: AuditAction.editarCliente,
+                  entidad: 'Cliente',
+                  idEntidad: clientId,
+                  nombreEntidad: '${client.nombres} ${client.apellidos}',
+                );
               }
 
               // Recargar lista de clientes

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../models/reservation.dart';
-import '../models/client.dart';
-import '../models/tour_package.dart';
-import '../services/storage_service.dart';
-import '../utils/number_formatter.dart';
-import '../widgets/unsaved_changes_dialog.dart';
+import 'package:aquatour/models/reservation.dart';
+import 'package:aquatour/models/client.dart';
+import 'package:aquatour/models/tour_package.dart';
+import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/services/audit_service.dart';
+import 'package:aquatour/models/audit_log.dart';
+import 'package:aquatour/utils/number_formatter.dart';
+import 'package:aquatour/widgets/unsaved_changes_dialog.dart';
 
 class ReservationEditScreen extends StatefulWidget {
   final Reservation? reservation;
@@ -56,7 +58,7 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
       text: widget.reservation?.notas ?? '',
     );
     
-    _cantidadPersonasController.addListener(_markAsChanged);
+    _cantidadPersonasController.addListener(_onQuantityChanged);
     _totalPagoController.addListener(_markAsChanged);
     _notasController.addListener(_markAsChanged);
     
@@ -108,13 +110,31 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
     }
   }
 
+  void _onQuantityChanged() {
+    _markAsChanged();
+    _recalculatePrice();
+  }
+
+  void _recalculatePrice() {
+    if (_selectedPackageId != null && _cantidadPersonasController.text.isNotEmpty) {
+      try {
+        final package = _packages.firstWhere((p) => p.id == _selectedPackageId);
+        final quantity = int.parse(_cantidadPersonasController.text);
+        final totalPrice = package.precioBase * quantity;
+        _totalPagoController.text = totalPrice.toString();
+      } catch (e) {
+        debugPrint('Error calculando precio: $e');
+      }
+    }
+  }
+
   void _onPackageSelected(int? packageId) {
     setState(() {
       _selectedPackageId = packageId;
       if (packageId != null) {
         final package = _packages.firstWhere((p) => p.id == packageId);
         // Auto-calcular precio y fechas sugeridas
-        _totalPagoController.text = package.precioBase.toString();
+        _recalculatePrice();
         if (_fechaInicio != null) {
           _fechaFin = _fechaInicio!.add(Duration(days: package.duracionDias));
         }
@@ -236,6 +256,20 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
       debugPrint('🔍 Creando reserva con idEmpleado: ${currentUser.idUsuario}, idPaquete: $_selectedPackageId');
 
       await _storageService.saveReservation(reservation);
+      
+      // Registrar en auditoría
+      await AuditService.logAction(
+        usuario: currentUser,
+        accion: widget.reservation == null ? AuditAction.crearReserva : AuditAction.editarReserva,
+        entidad: 'Reserva',
+        idEntidad: reservation.id,
+        nombreEntidad: reservation.id != null ? 'Reserva #${reservation.id}' : 'Nueva reserva',
+        detalles: {
+          'cliente_id': _selectedClientId.toString(),
+          'total': _totalPagoController.text,
+          'personas': _cantidadPersonasController.text,
+        },
+      );
       
       setState(() => _hasUnsavedChanges = false);
 

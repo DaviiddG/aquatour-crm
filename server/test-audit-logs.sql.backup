@@ -1,0 +1,22 @@
+-- Script para insertar logs de auditoría de prueba
+-- Ejecuta esto en tu base de datos MySQL
+
+-- Logs de administradores
+INSERT INTO audit_logs (id_usuario, nombre_usuario, rol_usuario, accion, categoria, entidad, id_entidad, nombre_entidad, detalles, fecha_hora) VALUES
+(1, 'Carlos Gómez', 'Administrador', 'crearUsuario', 'administrador', 'Usuario', 5, 'María López', '{"email": "maria.lopez@aqua.com", "rol": "Empleado"}', NOW() - INTERVAL 2 HOUR),
+(1, 'Carlos Gómez', 'Administrador', 'editarUsuario', 'administrador', 'Usuario', 3, 'Juan Pérez', '{"campo_modificado": "telefono", "valor_anterior": "555-1234", "valor_nuevo": "555-5678"}', NOW() - INTERVAL 5 HOUR),
+(1, 'Carlos Gómez', 'Administrador', 'cambiarContrasena', 'administrador', 'Usuario', 4, 'Ana Martínez', NULL, NOW() - INTERVAL 1 DAY),
+(1, 'Carlos Gómez', 'Administrador', 'crearPaquete', 'administrador', 'Paquete', 10, 'Tour Caribe Premium', '{"destino": "Cartagena", "duracion": "5 días", "precio": "2500000"}', NOW() - INTERVAL 2 DAY),
+(1, 'Carlos Gómez', 'Administrador', 'editarDestino', 'administrador', 'Destino', 3, 'San Andrés', '{"campo": "descripcion"}', NOW() - INTERVAL 3 DAY),
+(1, 'Carlos Gómez', 'Administrador', 'crearProveedor', 'administrador', 'Proveedor', 8, 'Hotel Caribe Plaza', '{"tipo": "Alojamiento", "ciudad": "Cartagena"}', NOW() - INTERVAL 4 DAY);
+
+-- Logs de asesores
+INSERT INTO audit_logs (id_usuario, nombre_usuario, rol_usuario, accion, categoria, entidad, id_entidad, nombre_entidad, detalles, fecha_hora) VALUES
+(2, 'Laura Rodríguez', 'Empleado', 'crearCliente', 'asesor', 'Cliente', 15, 'Pedro Sánchez', '{"telefono": "300-1234567", "email": "pedro@email.com", "fuente": "Redes sociales"}', NOW() - INTERVAL 1 HOUR),
+(2, 'Laura Rodríguez', 'Empleado', 'crearCotizacion', 'asesor', 'Cotización', 25, 'Cotización #25', '{"cliente": "Pedro Sánchez", "destino": "Cartagena", "monto": "3500000"}', NOW() - INTERVAL 3 HOUR),
+(2, 'Laura Rodríguez', 'Empleado', 'registrarPago', 'asesor', 'Pago', 50, 'Pago #REF-001', '{"monto": "1000000", "metodo": "Transferencia", "cotizacion": 25}', NOW() - INTERVAL 6 HOUR),
+(3, 'Miguel Torres', 'Empleado', 'crearReserva', 'asesor', 'Reserva', 12, 'Reserva #12', '{"cliente": "Ana García", "paquete": "Tour Caribe", "fecha": "2025-12-15"}', NOW() - INTERVAL 8 HOUR),
+(3, 'Miguel Torres', 'Empleado', 'editarCliente', 'asesor', 'Cliente', 18, 'Roberto Díaz', '{"campo": "direccion", "nuevo_valor": "Calle 123 #45-67"}', NOW() - INTERVAL 1 DAY),
+(2, 'Laura Rodríguez', 'Empleado', 'eliminarCotizacion', 'asesor', 'Cotización', 20, 'Cotización #20', '{"motivo": "Cliente canceló"}', NOW() - INTERVAL 2 DAY),
+(3, 'Miguel Torres', 'Empleado', 'registrarPago', 'asesor', 'Pago', 51, 'Pago #REF-002', '{"monto": "500000", "metodo": "Efectivo", "reserva": 12}', NOW() - INTERVAL 3 DAY),
+(2, 'Laura Rodríguez', 'Empleado', 'editarReserva', 'asesor', 'Reserva', 10, 'Reserva #10', '{"campo": "fecha_viaje", "nueva_fecha": "2025-11-20"}', NOW() - INTERVAL 4 DAY);

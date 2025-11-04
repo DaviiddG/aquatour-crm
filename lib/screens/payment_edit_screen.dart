@@ -6,6 +6,8 @@ import '../models/payment.dart';
 import '../models/reservation.dart';
 import '../models/quote.dart';
 import '../services/storage_service.dart';
+import '../services/audit_service.dart';
+import '../models/audit_log.dart';
 import '../utils/number_formatter.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/max_amount_formatter.dart';
@@ -349,6 +351,23 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
       debugPrint('   Monto: ${payment.monto}');
 
       await _storageService.savePayment(payment);
+      
+      // Registrar en auditoría
+      final currentUser = await _storageService.getCurrentUser();
+      if (currentUser != null) {
+        await AuditService.logAction(
+          usuario: currentUser,
+          accion: AuditAction.registrarPago,
+          entidad: 'Pago',
+          idEntidad: payment.id,
+          nombreEntidad: 'Pago #${payment.numReferencia}',
+          detalles: {
+            'monto': payment.monto.toString(),
+            'metodo': payment.metodo,
+            'tipo': _tipoPago,
+          },
+        );
+      }
 
       setState(() => _hasUnsavedChanges = false);
 

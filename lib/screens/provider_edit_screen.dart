@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/provider.dart';
 import '../services/storage_service.dart';
+import '../services/audit_service.dart';
+import '../models/audit_log.dart';
 import '../widgets/unsaved_changes_dialog.dart';
 
 class ProviderEditScreen extends StatefulWidget {
@@ -79,6 +81,22 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
       );
 
       await _storageService.saveProvider(provider);
+      
+      // Registrar en auditoría
+      final currentUser = await _storageService.getCurrentUser();
+      if (currentUser != null) {
+        await AuditService.logAction(
+          usuario: currentUser,
+          accion: widget.provider == null ? AuditAction.crearProveedor : AuditAction.editarProveedor,
+          entidad: 'Proveedor',
+          idEntidad: provider.id,
+          nombreEntidad: provider.nombre,
+          detalles: {
+            'tipo': provider.tipoProveedor,
+            'telefono': provider.telefono,
+          },
+        );
+      }
       
       setState(() => _hasUnsavedChanges = false);
 

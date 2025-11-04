@@ -5,6 +5,8 @@ import 'package:aquatour/limited_dashboard_screen.dart';
 import 'package:aquatour/widgets/custom_button.dart';
 import 'package:form_field_validator/form_field_validator.dart';
 import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/services/access_log_service.dart';
+import 'dart:html' as html;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,6 +34,46 @@ class _LoginScreenState extends State<LoginScreen> {
     _controladorUsuario.dispose();
     _controladorClave.dispose();
     super.dispose();
+  }
+
+  // Obtener IP del cliente (limitado en web)
+  String _getClientIP() {
+    try {
+      // En web, no podemos obtener la IP real del cliente directamente
+      // Retornamos un placeholder que el backend puede reemplazar
+      return 'Web Client';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+  // Obtener información del navegador
+  String _getBrowserInfo() {
+    try {
+      final userAgent = html.window.navigator.userAgent;
+      if (userAgent.contains('Chrome')) return 'Chrome';
+      if (userAgent.contains('Firefox')) return 'Firefox';
+      if (userAgent.contains('Safari')) return 'Safari';
+      if (userAgent.contains('Edge')) return 'Edge';
+      return 'Unknown Browser';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+  // Obtener información del sistema operativo
+  String _getOSInfo() {
+    try {
+      final userAgent = html.window.navigator.userAgent;
+      if (userAgent.contains('Windows')) return 'Windows';
+      if (userAgent.contains('Mac')) return 'macOS';
+      if (userAgent.contains('Linux')) return 'Linux';
+      if (userAgent.contains('Android')) return 'Android';
+      if (userAgent.contains('iOS')) return 'iOS';
+      return 'Unknown OS';
+    } catch (e) {
+      return 'Unknown';
+    }
   }
 
   Future<void> _iniciarSesion() async {
@@ -80,6 +122,28 @@ class _LoginScreenState extends State<LoginScreen> {
         _failedAttempts = 0;
         _lockoutUntil = null;
       });
+
+      // Registrar acceso al sistema
+      try {
+        final ipAddress = _getClientIP();
+        final navegador = _getBrowserInfo();
+        final sistemaOperativo = _getOSInfo();
+        
+        final logId = await AccessLogService.logLogin(
+          usuario: user,
+          ipAddress: ipAddress,
+          navegador: navegador,
+          sistemaOperativo: sistemaOperativo,
+        );
+        
+        // Guardar el ID del log para usarlo al cerrar sesión
+        if (logId != null) {
+          await _storageService.saveAccessLogId(logId);
+        }
+      } catch (e) {
+        debugPrint('Error al registrar acceso: $e');
+        // No bloqueamos el login si falla el registro
+      }
 
       final destination = user.esAdministrador
           ? const DashboardScreen()

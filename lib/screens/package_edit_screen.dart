@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../models/tour_package.dart';
-import '../models/destination.dart';
-import '../services/storage_service.dart';
-import '../utils/currency_input_formatter.dart';
-import '../widgets/unsaved_changes_dialog.dart';
+import 'package:aquatour/models/tour_package.dart';
+import 'package:aquatour/models/destination.dart';
+import 'package:aquatour/services/storage_service.dart';
+import 'package:aquatour/services/audit_service.dart';
+import 'package:aquatour/models/audit_log.dart';
+import 'package:aquatour/utils/currency_input_formatter.dart';
+import 'package:aquatour/widgets/unsaved_changes_dialog.dart';
 
 class PackageEditScreen extends StatefulWidget {
   final TourPackage? package;
@@ -134,6 +136,22 @@ class _PackageEditScreenState extends State<PackageEditScreen> {
       );
 
       await _storageService.savePackage(package);
+      
+      // Registrar en auditoría
+      final currentUser = await _storageService.getCurrentUser();
+      if (currentUser != null) {
+        await AuditService.logAction(
+          usuario: currentUser,
+          accion: widget.package == null ? AuditAction.crearPaquete : AuditAction.editarPaquete,
+          entidad: 'Paquete',
+          idEntidad: package.id,
+          nombreEntidad: package.nombre,
+          detalles: {
+            'precio': precio.toString(),
+            'duracion': _duracionController.text,
+          },
+        );
+      }
       
       // Resetear el flag de cambios sin guardar
       setState(() {

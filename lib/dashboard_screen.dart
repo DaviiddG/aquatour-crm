@@ -14,6 +14,8 @@ import 'screens/client_list_screen.dart';
 import 'screens/destinations_screen.dart';
 import 'screens/payments_screen.dart';
 import 'screens/tour_packages_screen.dart';
+import 'screens/audit_screen.dart';
+import 'screens/access_log_screen.dart';
 
 class DashboardModule {
   final String id;
@@ -127,6 +129,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
         icon: Icons.business_rounded,
         builder: (context) => const ProvidersScreen(),
         allowedRoles: const [UserRole.administrador, UserRole.superadministrador],
+      ),
+      DashboardModule(
+        id: 'audit',
+        title: 'Auditoría del Sistema',
+        description: 'Revisa todos los cambios realizados por administradores y asesores.',
+        icon: Icons.history_rounded,
+        badge: 'Solo superadmin',
+        builder: (context) => const AuditScreen(),
+        allowedRoles: const [UserRole.superadministrador],
+      ),
+      DashboardModule(
+        id: 'access_logs',
+        title: 'Registro de Accesos',
+        description: 'Monitorea los ingresos y salidas del sistema de todos los usuarios.',
+        icon: Icons.login_rounded,
+        badge: 'Solo superadmin',
+        builder: (context) => const AccessLogScreen(),
+        allowedRoles: const [UserRole.superadministrador],
       ),
     ];
 
