@@ -437,11 +437,11 @@ class _AccessLogScreenState extends State<AccessLogScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Icon(Icons.computer, size: 14, color: Colors.grey[600]),
+                          Icon(Icons.devices, size: 14, color: Colors.grey[600]),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              log.ipAddress,
+                              '${log.navegador ?? 'Navegador'} • ${log.sistemaOperativo ?? 'SO'}',
                               style: GoogleFonts.montserrat(
                                 fontSize: 12,
                                 color: Colors.grey[600],

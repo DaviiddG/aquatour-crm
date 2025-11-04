@@ -60,10 +60,26 @@ router.put('/:id/logout', async (req, res) => {
     }
 
     const fechaIngreso = new Date(logs[0].fecha_hora_ingreso);
-    const duracionMs = fechaHoraSalida - fechaIngreso;
-    const hours = Math.floor(duracionMs / (1000 * 60 * 60));
-    const minutes = Math.floor((duracionMs % (1000 * 60 * 60)) / (1000 * 60));
-    const duracionSesion = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    
+    // Calcular duración en milisegundos
+    const duracionMs = fechaHoraSalida.getTime() - fechaIngreso.getTime();
+    
+    // Convertir a horas y minutos
+    const totalMinutes = Math.floor(duracionMs / (1000 * 60));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    // Formatear duración
+    let duracionSesion;
+    if (hours > 0) {
+      duracionSesion = `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+      duracionSesion = `${minutes}m`;
+    } else {
+      duracionSesion = 'Menos de 1m';
+    }
+
+    console.log(`📊 Duración calculada: ${duracionSesion} (${totalMinutes} minutos)`);
 
     const sql = `
       UPDATE access_logs

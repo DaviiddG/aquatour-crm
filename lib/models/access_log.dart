@@ -56,17 +56,26 @@ class AccessLog {
   }
 
   // Calcular duración de sesión
-  String? calcularDuracion() {
+  String calcularDuracion() {
+    // Si el backend ya calculó la duración, usarla
+    if (duracionSesion != null && duracionSesion!.isNotEmpty) {
+      return duracionSesion!;
+    }
+    
+    // Si no hay salida, está en sesión
     if (fechaHoraSalida == null) return 'En sesión';
     
+    // Calcular duración en el frontend
     final duration = fechaHoraSalida!.difference(fechaHoraIngreso);
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     
     if (hours > 0) {
       return '${hours}h ${minutes}m';
-    } else {
+    } else if (minutes > 0) {
       return '${minutes}m';
+    } else {
+      return 'Menos de 1m';
     }
   }
 }
