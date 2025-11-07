@@ -4,6 +4,7 @@ import 'package:aquatour/widgets/module_scaffold.dart';
 import 'package:aquatour/models/destination.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'package:aquatour/utils/permissions_helper.dart';
+import 'package:aquatour/utils/number_formatter.dart';
 import 'destination_edit_screen.dart';
 
 class DestinationsScreen extends StatefulWidget {
@@ -361,15 +362,18 @@ class _DestinationCardState extends State<_DestinationCard> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                  if (widget.destination.climaPromedio != null || widget.destination.temporadaAlta != null) ...[
+                  if (widget.destination.climaPromedio != null || widget.destination.temporadaAlta != null || widget.destination.precioBase != null) ...[
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
+                      runSpacing: 8,
                       children: [
                         if (widget.destination.climaPromedio != null)
                           _buildChip(Icons.thermostat_rounded, widget.destination.climaPromedio!),
                         if (widget.destination.temporadaAlta != null)
                           _buildChip(Icons.calendar_today_rounded, widget.destination.temporadaAlta!),
+                        if (widget.destination.precioBase != null)
+                          _buildPriceChip(widget.destination.precioBase!),
                       ],
                     ),
                   ],
@@ -416,6 +420,31 @@ class _DestinationCardState extends State<_DestinationCard> {
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: const Color(0xFFf7941e),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildPriceChip(double price) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3D1F6E).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.payments_rounded, size: 14, color: Color(0xFF3D1F6E)),
+          const SizedBox(width: 4),
+          Text(
+            NumberFormatter.formatCurrency(price),
+            style: GoogleFonts.montserrat(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF3D1F6E),
             ),
           ),
         ],

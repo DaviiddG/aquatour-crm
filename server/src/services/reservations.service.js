@@ -1,5 +1,12 @@
 import { query } from '../config/db.js';
 
+// Helper para convertir fechas ISO a formato MySQL
+const formatDateForMySQL = (isoDate) => {
+  if (!isoDate) return null;
+  const date = new Date(isoDate);
+  return date.toISOString().slice(0, 19).replace('T', ' ');
+};
+
 const baseSelect = `
   SELECT
     r.id_reserva AS id,
@@ -64,8 +71,9 @@ export const createReservation = async (payload) => {
   const fechaFinViaje = payload.fechaFinViaje || payload.fecha_fin_viaje;
   const idCliente = payload.idCliente || payload.id_cliente;
   let idPaquete = payload.idPaquete || payload.id_paquete;
+  const idDestino = payload.idDestino || payload.id_destino;
+  const precioDestino = payload.precioDestino || payload.precio_destino;
   const idEmpleado = payload.idEmpleado || payload.id_empleado;
-  const estado = payload.estado || 'pendiente';
 
   console.log('🔍 Valores extraídos:', {
     cantidadPersonas,
@@ -74,6 +82,8 @@ export const createReservation = async (payload) => {
     fechaFinViaje,
     idCliente,
     idPaquete,
+    idDestino,
+    precioDestino,
     idEmpleado,
   });
 
@@ -109,25 +119,23 @@ export const createReservation = async (payload) => {
     console.log(`✅ Empleado creado: id_empleado=${empleadoId}`);
   }
 
-  // Si no hay paquete, buscar o crear uno por defecto
-  if (!idPaquete) {
-    const [defaultPackages] = await query(`SELECT id_paquete FROM Paquete_Turismo LIMIT 1`);
-    if (defaultPackages.length > 0) {
-      idPaquete = defaultPackages[0].id_paquete;
-    } else {
-      // Crear paquete por defecto si no existe ninguno
-      const [newPackage] = await query(
-        `INSERT INTO Paquete_Turismo (nombre, descripcion, precio_base, duracion_dias, cupo_maximo) VALUES (?, ?, ?, ?, ?)`,
-        ['Paquete General', 'Paquete turístico general', 0, 1, 999]
-      );
-      idPaquete = newPackage.insertId;
-    }
-  }
-
+  // No forzar paquete si hay destino personalizado
+  // Solo se requiere uno de los dos: idPaquete O idDestino
+  
   const [result] = await query(
-    `INSERT INTO Reserva (cantidad_personas, precio_total, fecha_inicio_viaje, fecha_fin_viaje, id_cliente, id_paquete, id_empleado)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [cantidadPersonas, totalPago, fechaInicioViaje, fechaFinViaje, idCliente, idPaquete, empleadoId]
+    `INSERT INTO Reserva (cantidad_personas, precio_total, fecha_inicio_viaje, fecha_fin_viaje, id_cliente, id_paquete, id_destino, precio_destino, id_empleado)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      cantidadPersonas, 
+      totalPago, 
+      formatDateForMySQL(fechaInicioViaje), 
+      formatDateForMySQL(fechaFinViaje), 
+      idCliente, 
+      idPaquete || null, 
+      idDestino || null, 
+      precioDestino || null, 
+      empleadoId
+    ]
   );
 
   console.log(`✅ Reserva creada con id_empleado=${empleadoId}`);
@@ -136,14 +144,37 @@ export const createReservation = async (payload) => {
 };
 
 export const updateReservation = async (idReserva, payload) => {
+  console.log('📦 Payload recibido para actualizar:', JSON.stringify(payload, null, 2));
+  
   const cantidadPersonas = payload.cantidadPersonas || payload.cantidad_personas;
   const totalPago = payload.totalPago || payload.total_pago || payload.precio_total;
   const fechaInicioViaje = payload.fechaInicioViaje || payload.fecha_inicio_viaje;
   const fechaFinViaje = payload.fechaFinViaje || payload.fecha_fin_viaje;
   const idCliente = payload.idCliente || payload.id_cliente;
   const idPaquete = payload.idPaquete || payload.id_paquete;
+  const idDestino = payload.idDestino || payload.id_destino;
+  const precioDestino = payload.precioDestino || payload.precio_destino;
 
-  if (!cantidadPersonas || !totalPago || !fechaInicioViaje || !fechaFinViaje || !idCliente) {
+  console.log('🔍 Valores extraídos:', {
+    cantidadPersonas,
+    totalPago,
+    fechaInicioViaje,
+    fechaFinViaje,
+    idCliente,
+    idPaquete,
+    idDestino,
+    precioDestino,
+  });
+
+  // Validar campos obligatorios (permitir 0 en totalPago)
+  if (!cantidadPersonas || totalPago === undefined || totalPago === null || !fechaInicioViaje || !fechaFinViaje || !idCliente) {
+    console.error('❌ Faltan campos:', {
+      cantidadPersonas: !!cantidadPersonas,
+      totalPago: totalPago !== undefined && totalPago !== null,
+      fechaInicioViaje: !!fechaInicioViaje,
+      fechaFinViaje: !!fechaFinViaje,
+      idCliente: !!idCliente,
+    });
     const error = new Error('Faltan campos obligatorios para actualizar la reserva');
     error.status = 400;
     throw error;
@@ -152,9 +183,19 @@ export const updateReservation = async (idReserva, payload) => {
   // NO actualizamos id_empleado para evitar problemas con pagos asociados
   const [result] = await query(
     `UPDATE Reserva
-     SET cantidad_personas = ?, precio_total = ?, fecha_inicio_viaje = ?, fecha_fin_viaje = ?, id_cliente = ?, id_paquete = ?
+     SET cantidad_personas = ?, precio_total = ?, fecha_inicio_viaje = ?, fecha_fin_viaje = ?, id_cliente = ?, id_paquete = ?, id_destino = ?, precio_destino = ?
      WHERE id_reserva = ?`,
-    [cantidadPersonas, totalPago, fechaInicioViaje, fechaFinViaje, idCliente, idPaquete || null, idReserva]
+    [
+      cantidadPersonas, 
+      totalPago, 
+      formatDateForMySQL(fechaInicioViaje), 
+      formatDateForMySQL(fechaFinViaje), 
+      idCliente, 
+      idPaquete || null, 
+      idDestino || null, 
+      precioDestino || null, 
+      idReserva
+    ]
   );
 
   if (result.affectedRows === 0) {

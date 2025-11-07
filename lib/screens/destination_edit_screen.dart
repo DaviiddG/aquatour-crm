@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/destination.dart';
 import '../services/storage_service.dart';
 import '../services/audit_service.dart';
 import '../models/audit_log.dart';
 import '../data/countries_cities.dart';
+import '../utils/number_formatter.dart';
 import '../widgets/unsaved_changes_dialog.dart';
 
 class DestinationEditScreen extends StatefulWidget {
@@ -27,7 +29,21 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
   late TextEditingController _climaController;
   late TextEditingController _temporadaController;
   late TextEditingController _idiomaController;
-  late TextEditingController _monedaController;
+  String? _selectedMoneda;
+  late TextEditingController _precioController;
+  
+  final List<String> _monedas = [
+    'COP - Peso Colombiano',
+    'USD - Dólar Estadounidense',
+    'EUR - Euro',
+    'GBP - Libra Esterlina',
+    'MXN - Peso Mexicano',
+    'ARS - Peso Argentino',
+    'BRL - Real Brasileño',
+    'CLP - Peso Chileno',
+    'PEN - Sol Peruano',
+    'AUD - Dólar Australiano',
+  ];
 
   bool _isSaving = false;
   bool _hasUnsavedChanges = false;
@@ -44,14 +60,28 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
     _climaController = TextEditingController(text: widget.destination?.climaPromedio ?? '');
     _temporadaController = TextEditingController(text: widget.destination?.temporadaAlta ?? '');
     _idiomaController = TextEditingController(text: widget.destination?.idiomaPrincipal ?? '');
-    _monedaController = TextEditingController(text: widget.destination?.moneda ?? '');
+    
+    // Inicializar moneda seleccionada
+    if (widget.destination?.moneda != null) {
+      _selectedMoneda = _monedas.firstWhere(
+        (m) => m.startsWith(widget.destination!.moneda!),
+        orElse: () => _monedas[0],
+      );
+    }
+    
+    // Inicializar precio con formato
+    _precioController = TextEditingController(
+      text: widget.destination?.precioBase != null 
+          ? NumberFormatter.formatNumber(widget.destination!.precioBase!)
+          : '',
+    );
     
     // Agregar listeners para detectar cambios
     _descripcionController.addListener(_markAsChanged);
     _climaController.addListener(_markAsChanged);
     _temporadaController.addListener(_markAsChanged);
     _idiomaController.addListener(_markAsChanged);
-    _monedaController.addListener(_markAsChanged);
+    _precioController.addListener(_onPriceChanged);
   }
   
   void _markAsChanged() {
@@ -61,6 +91,21 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
       });
     }
   }
+  
+  void _onPriceChanged() {
+    _markAsChanged();
+    // Formatear precio con separadores de miles
+    final text = _precioController.text.replaceAll('.', '').replaceAll(',', '');
+    if (text.isNotEmpty && int.tryParse(text) != null) {
+      final formatted = NumberFormatter.formatNumber(double.parse(text));
+      if (formatted != _precioController.text) {
+        _precioController.value = TextEditingValue(
+          text: formatted,
+          selection: TextSelection.collapsed(offset: formatted.length),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -68,7 +113,7 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
     _climaController.dispose();
     _temporadaController.dispose();
     _idiomaController.dispose();
-    _monedaController.dispose();
+    _precioController.dispose();
     super.dispose();
   }
 
@@ -78,6 +123,13 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
     setState(() => _isSaving = true);
 
     try {
+      // Extraer código de moneda (primeros 3 caracteres)
+      final monedaCodigo = _selectedMoneda?.split(' ')[0];
+      
+      // Parsear precio removiendo separadores de miles
+      final precioText = _precioController.text.trim().replaceAll('.', '').replaceAll(',', '');
+      final precioBase = precioText.isEmpty ? null : double.parse(precioText);
+      
       final destination = Destination(
         id: widget.destination?.id,
         ciudad: _selectedCiudad!,
@@ -86,7 +138,8 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
         climaPromedio: _climaController.text.trim().isEmpty ? null : _climaController.text.trim(),
         temporadaAlta: _temporadaController.text.trim().isEmpty ? null : _temporadaController.text.trim(),
         idiomaPrincipal: _idiomaController.text.trim().isEmpty ? null : _idiomaController.text.trim(),
-        moneda: _monedaController.text.trim().isEmpty ? null : _monedaController.text.trim(),
+        moneda: monedaCodigo,
+        precioBase: precioBase,
       );
 
       await _storageService.saveDestination(destination);
@@ -206,7 +259,13 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
                       // Auto-completar clima, moneda e idioma
                       if (value != null) {
                         _climaController.text = getClimateForCountry(value) ?? '';
-                        _monedaController.text = getCurrencyForCountry(value) ?? '';
+                        final currencyCode = getCurrencyForCountry(value);
+                        if (currencyCode != null) {
+                          _selectedMoneda = _monedas.firstWhere(
+                            (m) => m.startsWith(currencyCode),
+                            orElse: () => _monedas[0],
+                          );
+                        }
                         _idiomaController.text = getLanguageForCountry(value) ?? '';
                       }
                     });
@@ -260,11 +319,30 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
                   hint: 'Ej: Español, Inglés',
                 ),
                 const SizedBox(height: 16),
+                _buildDropdown(
+                  label: 'Moneda *',
+                  value: _selectedMoneda,
+                  items: _monedas,
+                  onChanged: (value) {
+                    setState(() => _selectedMoneda = value);
+                    _markAsChanged();
+                  },
+                  validator: (value) => value == null ? 'La moneda es obligatoria' : null,
+                ),
+                const SizedBox(height: 16),
                 _buildTextField(
-                  controller: _monedaController,
-                  label: 'Moneda',
-                  icon: Icons.attach_money_rounded,
-                  hint: 'Ej: USD, EUR, COP',
+                  controller: _precioController,
+                  label: 'Precio Base por Persona *',
+                  icon: Icons.payments_rounded,
+                  hint: 'Ingresa el precio base',
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'El precio es obligatorio';
+                    }
+                    return null;
+                  },
                 ),
               ],
             ),
@@ -380,11 +458,15 @@ class _DestinationEditScreenState extends State<DestinationEditScreen> {
     required IconData icon,
     String? hint,
     int maxLines = 1,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       validator: validator,
       style: GoogleFonts.montserrat(fontSize: 14),
       decoration: InputDecoration(

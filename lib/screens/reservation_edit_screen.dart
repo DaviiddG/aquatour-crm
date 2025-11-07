@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:aquatour/models/reservation.dart';
 import 'package:aquatour/models/client.dart';
 import 'package:aquatour/models/tour_package.dart';
+import 'package:aquatour/models/destination.dart';
 import 'package:aquatour/services/storage_service.dart';
 import 'package:aquatour/services/audit_service.dart';
 import 'package:aquatour/models/audit_log.dart';
@@ -26,11 +27,15 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
 
   List<Client> _clients = [];
   List<TourPackage> _packages = [];
+  List<Destination> _destinations = [];
   int? _selectedClientId;
   int? _selectedPackageId;
+  int? _selectedDestinationId;
+  bool _isPackage = true; // true = paquete, false = destino
   bool _isAdmin = false;
   DateTime? _fechaInicio;
   DateTime? _fechaFin;
+  late TextEditingController _precioDestinoController;
   
   late TextEditingController _cantidadPersonasController;
   late TextEditingController _totalPagoController;
@@ -45,6 +50,8 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
     super.initState();
     _selectedClientId = widget.reservation?.idCliente;
     _selectedPackageId = widget.reservation?.idPaquete;
+    _selectedDestinationId = widget.reservation?.idDestino;
+    _isPackage = widget.reservation?.idPaquete != null;
     _fechaInicio = widget.reservation?.fechaInicioViaje;
     _fechaFin = widget.reservation?.fechaFinViaje;
     
@@ -54,12 +61,16 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
     _totalPagoController = TextEditingController(
       text: widget.reservation?.totalPago.toString() ?? '',
     );
+    _precioDestinoController = TextEditingController(
+      text: widget.reservation?.precioDestino?.toString() ?? '',
+    );
     _notasController = TextEditingController(
       text: widget.reservation?.notas ?? '',
     );
     
     _cantidadPersonasController.addListener(_onQuantityChanged);
     _totalPagoController.addListener(_markAsChanged);
+    _precioDestinoController.addListener(_onDestinationPriceChanged);
     _notasController.addListener(_markAsChanged);
     
     _loadData();
@@ -92,10 +103,12 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
         }
         
         final packages = await _storageService.getPackages();
+        final destinations = await _storageService.getAllDestinations();
         if (mounted) {
           setState(() {
             _clients = clients;
             _packages = packages;
+            _destinations = destinations;
             _isLoading = false;
           });
         }
@@ -112,7 +125,27 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
 
   void _onQuantityChanged() {
     _markAsChanged();
-    _recalculatePrice();
+    if (_isPackage && _selectedPackageId != null) {
+      // Recalcular para paquetes
+      try {
+        final package = _packages.firstWhere((p) => p.id == _selectedPackageId);
+        final quantity = int.parse(_cantidadPersonasController.text);
+        final totalPrice = package.precioBase * quantity;
+        _totalPagoController.text = totalPrice.toString();
+      } catch (e) {
+        debugPrint('Error calculando precio: $e');
+      }
+    } else if (!_isPackage && _selectedDestinationId != null && _precioDestinoController.text.isNotEmpty) {
+      // Recalcular para destinos
+      try {
+        final precioDestino = double.parse(_precioDestinoController.text);
+        final quantity = int.parse(_cantidadPersonasController.text);
+        final totalPrice = precioDestino * quantity;
+        _totalPagoController.text = totalPrice.toString();
+      } catch (e) {
+        debugPrint('Error calculando precio destino: $e');
+      }
+    }
   }
 
   void _recalculatePrice() {
@@ -143,10 +176,25 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
     _markAsChanged();
   }
 
+  void _onDestinationPriceChanged() {
+    _markAsChanged();
+    if (!_isPackage && _selectedDestinationId != null && _precioDestinoController.text.isNotEmpty) {
+      try {
+        final precioDestino = double.parse(_precioDestinoController.text);
+        final quantity = int.parse(_cantidadPersonasController.text);
+        final totalPrice = precioDestino * quantity;
+        _totalPagoController.text = totalPrice.toString();
+      } catch (e) {
+        debugPrint('Error calculando precio destino: $e');
+      }
+    }
+  }
+
   @override
   void dispose() {
     _cantidadPersonasController.dispose();
     _totalPagoController.dispose();
+    _precioDestinoController.dispose();
     _notasController.dispose();
     super.dispose();
   }
@@ -240,15 +288,39 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
         throw Exception('ID de usuario no disponible');
       }
 
+      // Parsear precios removiendo separadores de miles
+      final precioDestinoText = _precioDestinoController.text.trim().replaceAll('.', '').replaceAll(',', '');
+      final totalPagoText = _totalPagoController.text.trim().replaceAll('.', '').replaceAll(',', '');
+      
+      debugPrint('🔍 Valores antes de guardar:');
+      debugPrint('  - Precio destino: "${_precioDestinoController.text}" -> "$precioDestinoText"');
+      debugPrint('  - Total pago: "${_totalPagoController.text}" -> "$totalPagoText"');
+      debugPrint('  - Cantidad: ${_cantidadPersonasController.text}');
+      
+      // Validar que el total no esté vacío
+      if (totalPagoText.isEmpty || double.tryParse(totalPagoText) == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('El precio total es inválido: "$totalPagoText"'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        throw Exception('El precio total es inválido: "$totalPagoText"');
+      }
+      
       final reservation = Reservation(
         id: widget.reservation?.id,
         estado: ReservationStatus.pendiente,
         cantidadPersonas: int.parse(_cantidadPersonasController.text),
-        totalPago: double.parse(_totalPagoController.text),
+        totalPago: double.parse(totalPagoText),
         fechaInicioViaje: _fechaInicio!,
         fechaFinViaje: _fechaFin!,
         idCliente: _selectedClientId!,
-        idPaquete: _selectedPackageId,
+        idPaquete: _isPackage ? _selectedPackageId : null,
+        idDestino: !_isPackage ? _selectedDestinationId : null,
+        precioDestino: !_isPackage && precioDestinoText.isNotEmpty 
+            ? double.parse(precioDestinoText) 
+            : null,
         idEmpleado: currentUser.idUsuario!,
         notas: _notasController.text.trim().isEmpty ? null : _notasController.text.trim(),
       );
@@ -381,45 +453,169 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                   ),
                   const SizedBox(height: 24),
                   _buildSection(
-                    title: 'Paquete Turístico (Opcional)',
+                    title: 'Tipo de Reserva',
                     children: [
-                      DropdownButtonFormField<int>(
-                        value: _selectedPackageId,
-                        decoration: InputDecoration(
-                          labelText: 'Seleccionar paquete',
-                          labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                          hintText: _packages.isEmpty ? 'No hay paquetes disponibles' : 'Sin paquete (destino individual)',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          prefixIcon: const Icon(Icons.card_travel, size: 20),
-                        ),
-                        items: _packages.map((package) {
-                          return DropdownMenuItem<int>(
-                            value: package.id,
-                            child: Text(
-                              '${package.nombre} (${package.duracionDias} días - ${NumberFormatter.formatCurrency(package.precioBase)})',
-                              style: GoogleFonts.montserrat(fontSize: 14),
+                      // Selector de tipo: Paquete o Destino
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: Text('Paquete Turístico', style: GoogleFonts.montserrat(fontSize: 14)),
+                              value: true,
+                              groupValue: _isPackage,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isPackage = value!;
+                                  _selectedPackageId = null;
+                                  _selectedDestinationId = null;
+                                  _precioDestinoController.clear();
+                                  _totalPagoController.clear();
+                                });
+                                _markAsChanged();
+                              },
+                              activeColor: const Color(0xFF3D1F6E),
                             ),
-                          );
-                        }).toList(),
-                        onChanged: _onPackageSelected,
+                          ),
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: Text('Destino Personalizado', style: GoogleFonts.montserrat(fontSize: 14)),
+                              value: false,
+                              groupValue: _isPackage,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isPackage = value!;
+                                  _selectedPackageId = null;
+                                  _selectedDestinationId = null;
+                                  _precioDestinoController.clear();
+                                  _totalPagoController.clear();
+                                });
+                                _markAsChanged();
+                              },
+                              activeColor: const Color(0xFF3D1F6E),
+                            ),
+                          ),
+                        ],
                       ),
-                      if (_selectedPackageId != null) ...[
+                      const SizedBox(height: 16),
+                      // Mostrar dropdown de paquetes o destinos según selección
+                      if (_isPackage) ...[
+                        DropdownButtonFormField<int>(
+                          value: _selectedPackageId,
+                          decoration: InputDecoration(
+                            labelText: 'Seleccionar paquete *',
+                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                            hintText: _packages.isEmpty ? 'No hay paquetes disponibles' : 'Selecciona un paquete',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            prefixIcon: const Icon(Icons.card_travel, size: 20),
+                          ),
+                          items: _packages.map((package) {
+                            return DropdownMenuItem<int>(
+                              value: package.id,
+                              child: Text(
+                                '${package.nombre} (${package.duracionDias} días - ${NumberFormatter.formatCurrency(package.precioBase)})',
+                                style: GoogleFonts.montserrat(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: _onPackageSelected,
+                          validator: (value) => _isPackage && value == null ? 'Selecciona un paquete' : null,
+                        ),
+                        if (_selectedPackageId != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Las fechas y precio se ajustarán según el paquete seleccionado',
+                                    style: GoogleFonts.montserrat(fontSize: 12, color: Colors.blue[900]),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ] else ...[
+                        DropdownButtonFormField<int>(
+                          value: _selectedDestinationId,
+                          decoration: InputDecoration(
+                            labelText: 'Seleccionar destino *',
+                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                            hintText: _destinations.isEmpty ? 'No hay destinos disponibles' : 'Selecciona un destino',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            prefixIcon: const Icon(Icons.location_on, size: 20),
+                          ),
+                          items: _destinations.map((destination) {
+                            return DropdownMenuItem<int>(
+                              value: destination.id,
+                              child: Text(
+                                '${destination.ciudad}, ${destination.pais}${destination.precioBase != null ? ' - ${NumberFormatter.formatCurrency(destination.precioBase!)}' : ''}',
+                                style: GoogleFonts.montserrat(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedDestinationId = value;
+                              // Auto-completar precio si el destino tiene precio base
+                              if (value != null) {
+                                final destination = _destinations.firstWhere((d) => d.id == value);
+                                if (destination.precioBase != null) {
+                                  // Formatear precio como número entero sin decimales
+                                  _precioDestinoController.text = destination.precioBase!.toInt().toString();
+                                  // Recalcular total
+                                  _onDestinationPriceChanged();
+                                }
+                              }
+                            });
+                            _markAsChanged();
+                          },
+                          validator: (value) => !_isPackage && value == null ? 'Selecciona un destino' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _precioDestinoController,
+                          decoration: InputDecoration(
+                            labelText: 'Precio por persona *',
+                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                            hintText: 'Ingresa el precio',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            prefixIcon: const Icon(Icons.attach_money, size: 20),
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          validator: (value) {
+                            if (!_isPackage && (value == null || value.isEmpty)) {
+                              return 'Ingresa el precio';
+                            }
+                            return null;
+                          },
+                        ),
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
+                            color: Colors.orange.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                              const Icon(Icons.info_outline, size: 16, color: Colors.orange),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Las fechas y precio se ajustarán según el paquete seleccionado',
-                                  style: GoogleFonts.montserrat(fontSize: 12, color: Colors.blue[900]),
+                                  'El precio total se calculará automáticamente según la cantidad de personas',
+                                  style: GoogleFonts.montserrat(fontSize: 12, color: Colors.orange[900]),
                                 ),
                               ),
                             ],

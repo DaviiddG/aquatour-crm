@@ -51,6 +51,8 @@ class Reservation extends Equatable {
     required this.fechaFinViaje,
     required this.idCliente,
     this.idPaquete,
+    this.idDestino,
+    this.precioDestino,
     required this.idEmpleado,
     this.empleadoNombre,
     this.empleadoApellido,
@@ -67,6 +69,8 @@ class Reservation extends Equatable {
   final DateTime fechaFinViaje;
   final int idCliente;
   final int? idPaquete;
+  final int? idDestino;
+  final double? precioDestino;
   final int idEmpleado;
   final String? empleadoNombre;
   final String? empleadoApellido;
@@ -94,6 +98,8 @@ class Reservation extends Equatable {
     DateTime? fechaFinViaje,
     int? idCliente,
     int? idPaquete,
+    int? idDestino,
+    double? precioDestino,
     int? idEmpleado,
     String? empleadoNombre,
     String? empleadoApellido,
@@ -110,6 +116,8 @@ class Reservation extends Equatable {
       fechaFinViaje: fechaFinViaje ?? this.fechaFinViaje,
       idCliente: idCliente ?? this.idCliente,
       idPaquete: idPaquete ?? this.idPaquete,
+      idDestino: idDestino ?? this.idDestino,
+      precioDestino: precioDestino ?? this.precioDestino,
       idEmpleado: idEmpleado ?? this.idEmpleado,
       empleadoNombre: empleadoNombre ?? this.empleadoNombre,
       empleadoApellido: empleadoApellido ?? this.empleadoApellido,
@@ -129,6 +137,8 @@ class Reservation extends Equatable {
       fechaFinViaje: _parseDate(map['fechaFinViaje'] ?? map['fecha_fin_viaje']) ?? DateTime.now(),
       idCliente: _parseInt(map['idCliente'] ?? map['id_cliente']) ?? 0,
       idPaquete: _parseInt(map['idPaquete'] ?? map['id_paquete']),
+      idDestino: _parseInt(map['idDestino'] ?? map['id_destino']),
+      precioDestino: _parseDouble(map['precioDestino'] ?? map['precio_destino']),
       idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado']) ?? 0,
       empleadoNombre: map['empleadoNombre']?.toString(),
       empleadoApellido: map['empleadoApellido']?.toString(),
@@ -148,6 +158,8 @@ class Reservation extends Equatable {
       'fecha_fin_viaje': fechaFinViaje.toIso8601String(),
       'id_cliente': idCliente,
       'id_paquete': idPaquete,
+      'id_destino': idDestino,
+      'precio_destino': precioDestino,
       'id_empleado': idEmpleado,
       'notas': notas,
     };

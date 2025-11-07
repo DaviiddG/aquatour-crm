@@ -10,6 +10,7 @@ class Destination extends Equatable {
     this.temporadaAlta,
     this.idiomaPrincipal,
     this.moneda,
+    this.precioBase,
     this.idProveedor,
   });
 
@@ -21,6 +22,7 @@ class Destination extends Equatable {
   final String? temporadaAlta;
   final String? idiomaPrincipal;
   final String? moneda;
+  final double? precioBase;
   final int? idProveedor;
 
   Destination copyWith({
@@ -32,6 +34,7 @@ class Destination extends Equatable {
     String? temporadaAlta,
     String? idiomaPrincipal,
     String? moneda,
+    double? precioBase,
     int? idProveedor,
   }) {
     return Destination(
@@ -43,6 +46,7 @@ class Destination extends Equatable {
       temporadaAlta: temporadaAlta ?? this.temporadaAlta,
       idiomaPrincipal: idiomaPrincipal ?? this.idiomaPrincipal,
       moneda: moneda ?? this.moneda,
+      precioBase: precioBase ?? this.precioBase,
       idProveedor: idProveedor ?? this.idProveedor,
     );
   }
@@ -57,6 +61,7 @@ class Destination extends Equatable {
       temporadaAlta: map['temporadaAlta']?.toString() ?? map['temporada_alta']?.toString(),
       idiomaPrincipal: map['idiomaPrincipal']?.toString() ?? map['idioma_principal']?.toString(),
       moneda: map['moneda']?.toString(),
+      precioBase: _parseDouble(map['precioBase'] ?? map['precio_base']),
       idProveedor: _parseInt(map['idProveedor'] ?? map['id_proveedor']),
     );
   }
@@ -71,6 +76,7 @@ class Destination extends Equatable {
       'temporada_alta': temporadaAlta,
       'idioma_principal': idiomaPrincipal,
       'moneda': moneda,
+      'precio_base': precioBase,
       'id_proveedor': idProveedor,
     };
   }
@@ -79,6 +85,13 @@ class Destination extends Equatable {
     if (value == null) return null;
     if (value is int) return value;
     return int.tryParse(value.toString());
+  }
+
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    return double.tryParse(value.toString());
   }
 
   @override
@@ -91,6 +104,7 @@ class Destination extends Equatable {
         temporadaAlta,
         idiomaPrincipal,
         moneda,
+        precioBase,
         idProveedor,
       ];
 }

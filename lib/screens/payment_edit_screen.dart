@@ -38,9 +38,12 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
   String _selectedMetodo = PaymentMethod.transferencia;
   DateTime _fechaPago = DateTime.now();
   
-  late TextEditingController _bancoEmisorController;
+  String? _selectedBanco;
   late TextEditingController _numReferenciaController;
   late TextEditingController _montoController;
+  
+  List<String> _bancosDisponibles = [];
+  String? _paisCliente;
 
   bool _isSaving = false;
   bool _isLoading = true;
@@ -53,11 +56,10 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
     _selectedMetodo = widget.payment?.metodo ?? PaymentMethod.transferencia;
     _fechaPago = widget.payment?.fechaPago ?? DateTime.now();
     
-    _bancoEmisorController = TextEditingController(
-      text: widget.payment?.bancoEmisor ?? '',
-    );
-    _numReferenciaController = TextEditingController(
-      text: widget.payment?.numReferencia ?? '',
+    _selectedBanco = widget.payment?.bancoEmisor;
+    _numReferenciaController = TextEditingController(text: widget.payment?.numReferencia ?? '');
+    _montoController = TextEditingController(
+      text: widget.payment?.monto != null ? widget.payment!.monto.toStringAsFixed(0) : '',
     );
     
     // Formatear el monto inicial con puntos de miles
@@ -69,7 +71,6 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
     _montoController = TextEditingController(text: initialMonto);
     
     // Agregar listeners
-    _bancoEmisorController.addListener(_markAsChanged);
     _numReferenciaController.addListener(_markAsChanged);
     _montoController.addListener(_markAsChanged);
     
@@ -81,6 +82,117 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
       setState(() {
         _hasUnsavedChanges = true;
       });
+    }
+  }
+  
+  List<String> _getBancosPorPais(String pais) {
+    switch (pais.toLowerCase()) {
+      case 'colombia':
+        return [
+          'Bancolombia',
+          'Banco de Bogotá',
+          'Davivienda',
+          'BBVA Colombia',
+          'Banco Popular',
+          'Banco de Occidente',
+          'Banco Caja Social',
+          'Banco AV Villas',
+          'Banco Agrario',
+          'Banco Pichincha',
+          'Scotiabank Colpatria',
+          'Itaú',
+          'Bancoomeva',
+          'Banco Falabella',
+          'Banco Finandina',
+          'Nequi',
+          'Daviplata',
+          'Otro',
+        ];
+      case 'méxico':
+      case 'mexico':
+        return [
+          'BBVA México',
+          'Banamex',
+          'Santander México',
+          'Banorte',
+          'HSBC México',
+          'Scotiabank México',
+          'Inbursa',
+          'Banco Azteca',
+          'Afirme',
+          'BanBajío',
+          'Otro',
+        ];
+      case 'argentina':
+        return [
+          'Banco Nación',
+          'Banco Provincia',
+          'Banco Galicia',
+          'BBVA Argentina',
+          'Santander Río',
+          'Macro',
+          'ICBC',
+          'Supervielle',
+          'Patagonia',
+          'Otro',
+        ];
+      case 'chile':
+        return [
+          'Banco de Chile',
+          'Banco Estado',
+          'BCI',
+          'Santander Chile',
+          'Itaú Chile',
+          'Scotiabank Chile',
+          'BBVA Chile',
+          'Banco Falabella',
+          'Otro',
+        ];
+      case 'perú':
+      case 'peru':
+        return [
+          'BCP',
+          'BBVA Perú',
+          'Interbank',
+          'Scotiabank Perú',
+          'Banco de la Nación',
+          'Banco Pichincha',
+          'Banco GNB',
+          'Otro',
+        ];
+      case 'españa':
+      case 'espana':
+        return [
+          'Santander',
+          'BBVA',
+          'CaixaBank',
+          'Bankia',
+          'Sabadell',
+          'Bankinter',
+          'ING',
+          'Unicaja',
+          'Otro',
+        ];
+      case 'estados unidos':
+      case 'usa':
+      case 'united states':
+        return [
+          'Bank of America',
+          'Chase',
+          'Wells Fargo',
+          'Citibank',
+          'US Bank',
+          'PNC Bank',
+          'Capital One',
+          'TD Bank',
+          'Otro',
+        ];
+      default:
+        return [
+          'Banco Internacional',
+          'Transferencia Internacional',
+          'Otro',
+        ];
     }
   }
 
@@ -117,6 +229,24 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
           debugPrint('   Cotización #${quote.id}: Precio=${quote.precioEstimado}');
         }
         
+        // Obtener el país del cliente para cargar los bancos correspondientes
+        if (_selectedReservationId != null && reservationsWithBalance.isNotEmpty) {
+          final reservation = reservationsWithBalance.firstWhere((r) => r.id == _selectedReservationId);
+          final clients = await _storageService.getClients();
+          final client = clients.where((c) => c.id == reservation.idCliente).firstOrNull;
+          if (client != null && client.pais != null) {
+            _paisCliente = client.pais;
+            _bancosDisponibles = _getBancosPorPais(client.pais!);
+          } else {
+            _paisCliente = 'Colombia';
+            _bancosDisponibles = _getBancosPorPais('Colombia');
+          }
+        } else {
+          // Si no hay reserva seleccionada, usar Colombia por defecto
+          _paisCliente = 'Colombia';
+          _bancosDisponibles = _getBancosPorPais('Colombia');
+        }
+        
         if (mounted) {
           setState(() {
             _reservations = reservationsWithBalance;
@@ -143,9 +273,21 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
   
   Future<void> _updateSaldoPendiente() async {
     if (_tipoPago == 'reserva' && _selectedReservationId != null) {
-      final balance = await _storageService.getReservationBalance(_selectedReservationId!);
+      // Para reservas, calcular el saldo pendiente
+      final reservation = _reservations.firstWhere((r) => r.id == _selectedReservationId);
+      final payments = await _storageService.getPaymentsByReservation(_selectedReservationId!);
+      final totalPagado = payments.fold<double>(0, (sum, payment) => sum + payment.monto);
+      
+      // Actualizar bancos según el país del cliente
+      final clients = await _storageService.getClients();
+      final client = clients.where((c) => c.id == reservation.idCliente).firstOrNull;
+      
       setState(() {
-        _saldoPendiente = balance['montoRestante'] as double;
+        _saldoPendiente = reservation.totalPago - totalPagado;
+        if (client != null && client.pais != null) {
+          _paisCliente = client.pais;
+          _bancosDisponibles = _getBancosPorPais(client.pais);
+        }
       });
     } else if (_tipoPago == 'cotizacion' && _selectedQuoteId != null) {
       // Para cotizaciones, el saldo pendiente es el precio estimado completo
@@ -158,7 +300,6 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
 
   @override
   void dispose() {
-    _bancoEmisorController.dispose();
     _numReferenciaController.dispose();
     _montoController.dispose();
     super.dispose();
@@ -335,13 +476,13 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
 
       final payment = Payment(
         id: widget.payment?.id,
-        fechaPago: DateTime(_fechaPago.year, _fechaPago.month, _fechaPago.day),
-        metodo: _selectedMetodo,
-        bancoEmisor: _bancoEmisorController.text.trim().isEmpty ? null : _bancoEmisorController.text.trim(),
-        numReferencia: numFactura,
-        monto: monto,
         idReserva: _tipoPago == 'reserva' ? _selectedReservationId : null,
         idCotizacion: _tipoPago == 'cotizacion' ? _selectedQuoteId : null,
+        metodo: _selectedMetodo,
+        monto: double.parse(_montoController.text.replaceAll('.', '').replaceAll(',', '')),
+        fechaPago: _fechaPago,
+        bancoEmisor: _selectedBanco,
+        numReferencia: _numReferenciaController.text.trim().isEmpty ? 'AUTO' : _numReferenciaController.text.trim(),
       );
 
       debugPrint('💰 Guardando pago:');
@@ -364,7 +505,6 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
           detalles: {
             'monto': payment.monto.toString(),
             'metodo': payment.metodo,
-            'tipo': _tipoPago,
           },
         );
       }
@@ -703,7 +843,7 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                             _selectedMetodo = value!;
                             // Limpiar banco emisor si se selecciona efectivo
                             if (value == PaymentMethod.efectivo) {
-                              _bancoEmisorController.clear();
+                              _selectedBanco = null;
                             }
                           });
                           _markAsChanged();
@@ -712,8 +852,8 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                       ),
                       if (_selectedMetodo != PaymentMethod.efectivo) ...[
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _bancoEmisorController,
+                        DropdownButtonFormField<String>(
+                          value: _selectedBanco,
                           decoration: InputDecoration(
                             labelText: 'Banco emisor *',
                             labelStyle: GoogleFonts.montserrat(fontSize: 13),
@@ -721,12 +861,20 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                             prefixIcon: const Icon(Icons.account_balance, size: 20),
                           ),
-                          validator: (value) {
-                            if (_selectedMetodo != PaymentMethod.efectivo && (value == null || value.trim().isEmpty)) {
-                              return 'El banco emisor es obligatorio';
-                            }
-                            return null;
+                          items: _bancosDisponibles.map((banco) {
+                            return DropdownMenuItem<String>(
+                              value: banco,
+                              child: Text(
+                                banco,
+                                style: GoogleFonts.montserrat(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() => _selectedBanco = value);
+                            _markAsChanged();
                           },
+                          validator: (value) => value == null ? 'Selecciona el banco emisor' : null,
                         ),
                       ],
                       const SizedBox(height: 16),
