@@ -9,6 +9,7 @@ import 'quotes_screen.dart';
 import 'reservations_screen.dart';
 import 'user_management_screen.dart';
 import 'services/storage_service.dart';
+import 'services/api_service.dart';
 import 'widgets/dashboard_option_card.dart';
 import 'screens/client_list_screen.dart';
 import 'screens/destinations_screen.dart';
@@ -232,6 +233,273 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _showClearCRMDialog(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 32),
+              const SizedBox(width: 12),
+              Text(
+                '⚠️ ADVERTENCIA',
+                style: GoogleFonts.montserrat(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.red,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Esta acción eliminará TODA la información del CRM:',
+                style: GoogleFonts.montserrat(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '• Todos los clientes\n'
+                '• Todas las cotizaciones\n'
+                '• Todas las reservas\n'
+                '• Todos los pagos\n'
+                '• Todos los paquetes\n'
+                '• Todos los destinos\n'
+                '• Todos los contactos\n'
+                '• Todos los proveedores',
+                style: GoogleFonts.montserrat(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red, width: 2),
+                ),
+                child: Text(
+                  '⚠️ ESTA OPERACIÓN ES IRREVERSIBLE\n\nNo se podrá recuperar la información eliminada.',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.red.shade900,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancelar',
+                style: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                'Continuar',
+                style: GoogleFonts.montserrat(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    // Segunda confirmación
+    final finalConfirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Confirmación Final',
+            style: GoogleFonts.montserrat(
+              fontWeight: FontWeight.w700,
+              color: Colors.red,
+            ),
+          ),
+          content: Text(
+            '¿Está ABSOLUTAMENTE SEGURO de que desea limpiar todo el CRM?\n\nEsta es su última oportunidad para cancelar.',
+            style: GoogleFonts.montserrat(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancelar',
+                style: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade900,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                'SÍ, LIMPIAR TODO',
+                style: GoogleFonts.montserrat(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (finalConfirmed != true) return;
+
+    // Ejecutar limpieza
+    await _executeClearCRM(context);
+  }
+
+  Future<void> _executeClearCRM(BuildContext context) async {
+    try {
+      // Mostrar loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Center(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Limpiando CRM...',
+                      style: GoogleFonts.montserrat(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+      final user = await _storageService.getCurrentUser();
+      final token = await StorageService.getToken();
+
+      if (user == null) {
+        throw Exception('Usuario no autenticado');
+      }
+
+      // Preparar datos de auditoría
+      final auditData = {
+        'audit': {
+          'id_usuario': user.idUsuario,
+          'nombre_usuario': '${user.nombre} ${user.apellido}',
+          'rol_usuario': user.rol.displayName,
+          'categoria': 'administrador',
+        }
+      };
+
+      // Llamar al API
+      await ApiService().clearCRM(token, auditData);
+
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Cerrar loading
+
+        // Mostrar éxito
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 32),
+                  const SizedBox(width: 12),
+                  Text(
+                    'CRM Limpiado',
+                    style: GoogleFonts.montserrat(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              content: Text(
+                'El CRM ha sido limpiado exitosamente. Toda la información ha sido eliminada.',
+                style: GoogleFonts.montserrat(),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    // Recargar dashboard
+                    setState(() {});
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3D1F6E),
+                  ),
+                  child: Text(
+                    'Aceptar',
+                    style: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Cerrar loading
+
+        // Mostrar error
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.red, size: 32),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Error',
+                    style: GoogleFonts.montserrat(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              content: Text(
+                'Error al limpiar el CRM: $e',
+                style: GoogleFonts.montserrat(),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Cerrar',
+                    style: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -313,6 +581,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
+          FutureBuilder<User?>(
+            future: _storageService.getCurrentUser(),
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data?.rol == UserRole.superadministrador) {
+                return TextButton.icon(
+                  onPressed: () => _showClearCRMDialog(context),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    textStyle: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+                  ),
+                  icon: const Icon(Icons.delete_forever_rounded),
+                  label: const Text('Limpiar CRM'),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+          const SizedBox(width: 12),
           TextButton.icon(
             onPressed: () async {
               await _storageService.logout();

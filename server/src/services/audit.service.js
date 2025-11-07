@@ -26,6 +26,16 @@ export const createAuditLog = async (logData) => {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
+  // Ajustar fecha a zona horaria de Colombia (UTC-5)
+  const getFechaColombia = () => {
+    const now = new Date();
+    // Convertir a hora de Colombia (UTC-5)
+    const colombiaOffset = -5 * 60; // -5 horas en minutos
+    const localOffset = now.getTimezoneOffset(); // Diferencia con UTC en minutos
+    const colombiaTime = new Date(now.getTime() + (localOffset + colombiaOffset) * 60 * 1000);
+    return colombiaTime;
+  };
+
   const [result] = await query(sql, [
     id_usuario,
     nombre_usuario,
@@ -36,7 +46,7 @@ export const createAuditLog = async (logData) => {
     id_entidad || null,
     nombre_entidad || null,
     detalles || null,
-    fecha_hora || new Date()
+    fecha_hora || getFechaColombia()
   ]);
 
   return result.insertId;

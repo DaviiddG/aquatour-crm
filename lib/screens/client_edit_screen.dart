@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:aquatour/widgets/module_scaffold.dart';
 import 'package:aquatour/services/api_service.dart';
@@ -265,6 +266,32 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
     }
 
     try {
+      // Validar que el documento no esté duplicado
+      final documento = _documentoController.text.trim();
+      if (documento.isNotEmpty) {
+        final token = await StorageService.getToken();
+        final allClients = await ApiService().getClients(token);
+        
+        // Verificar si existe otro cliente con el mismo documento (excluyendo el cliente actual si es edición)
+        final duplicateClient = allClients.firstWhere(
+          (c) => c['documento']?.toString() == documento && c['id']?.toString() != (widget.clientData?.id ?? ''),
+          orElse: () => {},
+        );
+        
+        if (duplicateClient.isNotEmpty) {
+          if (mounted) {
+            Navigator.of(context).pop(); // Cerrar loading si está abierto
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Ya existe un cliente con el documento $documento'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
       // Mostrar indicador de carga
       showDialog(
         context: context,
@@ -376,6 +403,8 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
                 label: 'Documento de Identidad',
                 controller: _documentoController,
                 isRequired: true,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               const SizedBox(height: 12),
               _buildDropdownField<String>(
@@ -399,6 +428,7 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
               _buildTextField(
                 label: 'Número de Pasaporte',
                 controller: _pasaporteController,
+                inputFormatters: [FilteringTextInputFormatter(RegExp(r'[a-zA-Z0-9]'), allow: true)],
               ),
               const SizedBox(height: 12),
               _buildDropdownField<String>(
@@ -482,6 +512,7 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
     bool isRequired = false,
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -489,6 +520,7 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
         controller: controller,
         keyboardType: keyboardType,
         maxLines: maxLines,
+        inputFormatters: inputFormatters,
         decoration: InputDecoration(
           labelText: label + (isRequired ? ' *' : ''),
           border: OutlineInputBorder(

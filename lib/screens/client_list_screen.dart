@@ -5,8 +5,6 @@ import '../models/client.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
-import '../services/audit_service.dart';
-import '../models/audit_log.dart';
 import '../widgets/module_scaffold.dart';
 import 'package:aquatour/utils/permissions_helper.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -204,35 +202,23 @@ class _ClientListScreenState extends State<ClientListScreen> {
               final clientMap = client.toJson();
               clientMap['id_usuario'] = currentUser.idUsuario;
 
+              // Agregar datos de auditoría a la petición para que el backend los registre
+              clientMap['audit'] = {
+                'id_usuario': currentUser.idUsuario,
+                'nombre_usuario': '${currentUser.nombre} ${currentUser.apellido}',
+                'rol_usuario': currentUser.rol.displayName,
+                'categoria': currentUser.esAdministrador ? 'administrador' : 'asesor',
+              };
+
               if (clientData == null) {
                 // Crear nuevo cliente
                 await ApiService().createClient(clientMap, _token);
-                
-                // Registrar en auditoría
-                await AuditService.logAction(
-                  usuario: currentUser,
-                  accion: AuditAction.crearCliente,
-                  entidad: 'Cliente',
-                  nombreEntidad: '${client.nombres} ${client.apellidos}',
-                  detalles: {
-                    'telefono': client.telefono,
-                    'email': client.email,
-                  },
-                );
               } else {
                 // Actualizar cliente existente
                 final clientId = clientData['id'] ?? 0;
                 if (clientId == 0) {
                   throw Exception('ID de cliente inválido');
                 }
-                
-                // Agregar datos de auditoría a la petición
-                clientMap['audit'] = {
-                  'id_usuario': currentUser.idUsuario,
-                  'nombre_usuario': '${currentUser.nombre} ${currentUser.apellido}',
-                  'rol_usuario': currentUser.rol.displayName,
-                  'categoria': currentUser.esAdministrador ? 'administrador' : 'asesor',
-                };
                 
                 await ApiService().updateClient(clientId, clientMap, _token);
               }
@@ -301,7 +287,23 @@ class _ClientListScreenState extends State<ClientListScreen> {
           TextButton(
             onPressed: () async {
               try {
-                await ApiService().deleteClient(id, _token);
+                // Obtener usuario actual para auditoría
+                final currentUser = await StorageService().getCurrentUser();
+                if (currentUser == null) {
+                  throw Exception('Usuario no autenticado');
+                }
+
+                // Preparar datos de auditoría
+                final auditData = {
+                  'audit': {
+                    'id_usuario': currentUser.idUsuario,
+                    'nombre_usuario': '${currentUser.nombre} ${currentUser.apellido}',
+                    'rol_usuario': currentUser.rol.displayName,
+                    'categoria': currentUser.esAdministrador ? 'administrador' : 'asesor',
+                  }
+                };
+
+                await ApiService().deleteClient(id, _token, auditData);
 
                 // Recargar lista de clientes
                 await _loadClients();

@@ -43,7 +43,10 @@ enum AuditAction {
   // Acciones de proveedores
   crearProveedor('Crear proveedor'),
   editarProveedor('Editar proveedor'),
-  eliminarProveedor('Eliminar proveedor');
+  eliminarProveedor('Eliminar proveedor'),
+  
+  // Acciones de sistema
+  limpiarCRM('Limpiar CRM');
 
   const AuditAction(this.displayName);
   final String displayName;
@@ -92,7 +95,7 @@ class AuditLog {
       nombreUsuario: map['nombre_usuario'] as String,
       rolUsuario: map['rol_usuario'] as String,
       accion: AuditAction.values.firstWhere(
-        (e) => e.name == map['accion'],
+        (e) => e.displayName == map['accion'],
         orElse: () => AuditAction.crearUsuario,
       ),
       categoria: AuditCategory.values.firstWhere(

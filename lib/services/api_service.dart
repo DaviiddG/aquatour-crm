@@ -159,11 +159,13 @@ class ApiService {
   }
 
   // Método genérico para hacer peticiones DELETE
-  Future<dynamic> _delete(String endpoint, {String? token}) async {
+  Future<dynamic> _delete(String endpoint, {String? token, Map<String, dynamic>? body}) async {
     try {
+      final headers = _authHeaders(token);
       final response = await http.delete(
         _buildUri(endpoint),
-        headers: _authHeaders(token),
+        headers: headers,
+        body: body != null ? jsonEncode(body) : null,
       );
       return _parseResponse(response);
     } catch (e) {
@@ -342,8 +344,25 @@ class ApiService {
     return response as Map<String, dynamic>;
   }
 
-  Future<void> deleteClient(int id, String? token) async {
-    await _delete('/clients/$id', token: token);
+  Future<void> deleteClient(int id, String? token, [Map<String, dynamic>? auditData]) async {
+    String endpoint = '/clients/$id';
+    
+    // Si hay datos de auditoría, agregarlos como query parameters
+    if (auditData != null && auditData['audit'] != null) {
+      final audit = auditData['audit'] as Map<String, dynamic>;
+      final queryParams = {
+        'id_usuario': audit['id_usuario'].toString(),
+        'nombre_usuario': audit['nombre_usuario'].toString(),
+        'rol_usuario': audit['rol_usuario'].toString(),
+        'categoria': audit['categoria'].toString(),
+      };
+      
+      final uri = Uri.parse('$baseUrl$endpoint');
+      final uriWithParams = uri.replace(queryParameters: queryParams);
+      endpoint = uriWithParams.toString().replaceFirst(baseUrl, '');
+    }
+    
+    await _delete(endpoint, token: token);
   }
 
   // ===== DESTINOS =====
@@ -537,5 +556,29 @@ class ApiService {
   Future<Map<String, dynamic>> getDashboardStats(String? token) async {
     final response = await _get('/dashboard/stats', token: token);
     return response;
+  }
+
+  // ===== SISTEMA =====
+
+  // Limpiar todo el CRM (solo superadministrador)
+  Future<void> clearCRM(String? token, Map<String, dynamic> auditData) async {
+    String endpoint = '/system/clear-all';
+    
+    // Agregar datos de auditoría como query parameters
+    if (auditData['audit'] != null) {
+      final audit = auditData['audit'] as Map<String, dynamic>;
+      final queryParams = {
+        'id_usuario': audit['id_usuario'].toString(),
+        'nombre_usuario': audit['nombre_usuario'].toString(),
+        'rol_usuario': audit['rol_usuario'].toString(),
+        'categoria': audit['categoria'].toString(),
+      };
+      
+      final uri = Uri.parse('$baseUrl$endpoint');
+      final uriWithParams = uri.replace(queryParameters: queryParams);
+      endpoint = uriWithParams.toString().replaceFirst(baseUrl, '');
+    }
+    
+    await _delete(endpoint, token: token);
   }
 }

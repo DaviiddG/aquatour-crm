@@ -44,7 +44,33 @@ export const getClientsByUser = async (req, res, next) => {
 
 export const createClientController = async (req, res, next) => {
   try {
+    console.log('📦 Crear cliente - req.body.audit:', req.body.audit);
     const newClient = await createClient(req.body);
+    
+    // Registrar en auditoría
+    if (req.body.audit) {
+      try {
+        await createAuditLog({
+          id_usuario: req.body.audit.id_usuario,
+          nombre_usuario: req.body.audit.nombre_usuario,
+          rol_usuario: req.body.audit.rol_usuario,
+          accion: 'Crear cliente',
+          entidad: 'Cliente',
+          id_entidad: newClient.id_cliente,
+          nombre_entidad: `${newClient.nombres || ''} ${newClient.apellidos || ''}`.trim(),
+          categoria: req.body.audit.categoria || 'administrador',
+          detalles: JSON.stringify({
+            nombres: newClient.nombres,
+            apellidos: newClient.apellidos,
+            email: newClient.email,
+            telefono: newClient.telefono,
+          })
+        });
+      } catch (auditError) {
+        console.error('Error al registrar auditoría:', auditError);
+      }
+    }
+    
     res.status(201).json({ ok: true, client: newClient });
   } catch (error) {
     next(error);
@@ -53,6 +79,7 @@ export const createClientController = async (req, res, next) => {
 
 export const updateClientController = async (req, res, next) => {
   try {
+    console.log('📦 Actualizar cliente - req.body.audit:', req.body.audit);
     const { idCliente } = req.params;
     const updatedClient = await updateClient(idCliente, req.body);
 
@@ -63,26 +90,31 @@ export const updateClientController = async (req, res, next) => {
     // Registrar en auditoría
     if (req.body.audit) {
       try {
-        await createAuditLog({
+        console.log('✅ Registrando auditoría de edición...');
+        const auditData = {
           id_usuario: req.body.audit.id_usuario,
           nombre_usuario: req.body.audit.nombre_usuario,
           rol_usuario: req.body.audit.rol_usuario,
-          accion: 'Editar',
+          accion: 'Editar cliente',
           entidad: 'Cliente',
           id_entidad: parseInt(idCliente),
-          nombre_entidad: `${updatedClient.nombre} ${updatedClient.apellido}`,
+          nombre_entidad: `${updatedClient.nombres || updatedClient.nombre || ''} ${updatedClient.apellidos || updatedClient.apellido || ''}`.trim(),
           categoria: req.body.audit.categoria || 'administrador',
           detalles: JSON.stringify({
-            nombre: updatedClient.nombre,
-            apellido: updatedClient.apellido,
+            nombres: updatedClient.nombres || updatedClient.nombre,
+            apellidos: updatedClient.apellidos || updatedClient.apellido,
             email: updatedClient.email,
             telefono: updatedClient.telefono,
-            origen: updatedClient.origen
           })
-        });
+        };
+        console.log('📝 Datos de auditoría:', auditData);
+        await createAuditLog(auditData);
+        console.log('✅ Auditoría registrada exitosamente');
       } catch (auditError) {
-        console.error('Error al registrar auditoría:', auditError);
+        console.error('❌ Error al registrar auditoría:', auditError);
       }
+    } else {
+      console.log('⚠️ No se recibieron datos de auditoría');
     }
 
     res.json({ ok: true, client: updatedClient });
@@ -94,10 +126,45 @@ export const updateClientController = async (req, res, next) => {
 export const deleteClientController = async (req, res, next) => {
   try {
     const { idCliente } = req.params;
+    
+    console.log('📦 Eliminar cliente - query params:', req.query);
+    
+    // Obtener datos del cliente antes de eliminarlo para la auditoría
+    const clientToDelete = await findClientById(idCliente);
+    
     const deleted = await deleteClient(idCliente);
 
     if (!deleted) {
       return res.status(404).json({ ok: false, error: 'Cliente no encontrado' });
+    }
+
+    // Registrar en auditoría - leer desde query params
+    if (req.query.id_usuario && clientToDelete) {
+      try {
+        console.log('✅ Registrando auditoría de eliminación...');
+        const auditData = {
+          id_usuario: parseInt(req.query.id_usuario),
+          nombre_usuario: req.query.nombre_usuario,
+          rol_usuario: req.query.rol_usuario,
+          accion: 'Eliminar cliente',
+          entidad: 'Cliente',
+          id_entidad: parseInt(idCliente),
+          nombre_entidad: `${clientToDelete.nombres || ''} ${clientToDelete.apellidos || ''}`.trim(),
+          categoria: req.query.categoria || 'administrador',
+          detalles: JSON.stringify({
+            nombres: clientToDelete.nombres,
+            apellidos: clientToDelete.apellidos,
+            email: clientToDelete.email,
+          })
+        };
+        console.log('📝 Datos de auditoría:', auditData);
+        await createAuditLog(auditData);
+        console.log('✅ Auditoría de eliminación registrada exitosamente');
+      } catch (auditError) {
+        console.error('❌ Error al registrar auditoría de eliminación:', auditError);
+      }
+    } else {
+      console.log('⚠️ No se recibieron datos de auditoría para eliminación');
     }
 
     res.json({ ok: true, deleted: true });

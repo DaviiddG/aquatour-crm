@@ -14,6 +14,7 @@ import quoteRoutes from './routes/quotes.routes.js';
 import providerRoutes from './routes/providers.routes.js';
 import auditRoutes from './routes/audit.routes.js';
 import accessLogRoutes from './routes/access-log.routes.js';
+import systemRoutes from './routes/system.routes.js';
 import { errorHandler } from './utils/error-handler.js';
 
 dotenv.config();
@@ -43,6 +44,7 @@ app.use('/api/quotes', quoteRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/audit-logs', auditRoutes);
 app.use('/api/access-logs', accessLogRoutes);
+app.use('/api/system', systemRoutes);
 
 app.use(errorHandler);
 

@@ -55,9 +55,14 @@ class AuditService {
   // Obtener todos los logs de auditoría (solo superadministrador)
   static Future<List<AuditLog>> getAllLogs() async {
     try {
+      // Agregar timestamp para evitar caché
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
       final response = await http.get(
-        Uri.parse('$baseUrl/audit-logs'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$baseUrl/audit-logs?_t=$timestamp'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
       );
 
       if (response.statusCode == 200) {
