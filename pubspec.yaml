@@ -29,6 +29,10 @@ dependencies:
   equatable: ^2.0.5
   # Internacionalización (flexible para diferentes versiones de Flutter)
   intl: any
+  # Generación de PDFs
+  pdf: ^3.11.1
+  # Descarga de archivos en web
+  universal_html: ^2.2.4
 
 dev_dependencies:
   flutter_test:

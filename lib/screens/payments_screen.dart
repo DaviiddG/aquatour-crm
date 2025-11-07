@@ -4,7 +4,10 @@ import 'package:intl/intl.dart';
 import '../models/payment.dart';
 import '../models/quote.dart';
 import '../models/user.dart';
+import '../models/reservation.dart';
+import '../models/client.dart';
 import '../services/storage_service.dart';
+import '../services/invoice_service.dart';
 import '../screens/payment_edit_screen.dart';
 import '../utils/number_formatter.dart';
 import '../widgets/module_scaffold.dart';
@@ -873,12 +876,79 @@ class _QuotePaymentCard extends StatelessWidget {
   }
 }
 
-class _PaymentCard extends StatelessWidget {
+class _PaymentCard extends StatefulWidget {
   const _PaymentCard({
     required this.payment,
   });
 
   final Payment payment;
+
+  @override
+  State<_PaymentCard> createState() => _PaymentCardState();
+}
+
+class _PaymentCardState extends State<_PaymentCard> {
+  final StorageService _storageService = StorageService();
+  bool _isGeneratingPDF = false;
+
+  Future<void> _downloadInvoice() async {
+    setState(() => _isGeneratingPDF = true);
+    
+    try {
+      // Obtener datos necesarios para la factura
+      Reservation? reservation;
+      Client? client;
+      
+      if (widget.payment.idReserva != null) {
+        try {
+          final reservations = await _storageService.getAllReservations();
+          reservation = reservations.firstWhere((r) => r.id == widget.payment.idReserva);
+          
+          // Obtener cliente de la reserva
+          final clients = await _storageService.getClients();
+          client = clients.firstWhere((c) => c.id == reservation!.idCliente);
+        } catch (e) {
+          debugPrint('Error obteniendo reserva/cliente: $e');
+        }
+      }
+      
+      // Generar PDF
+      final pdfBytes = await InvoiceService.generateInvoice(
+        payment: widget.payment,
+        reservation: reservation,
+        client: client,
+        employeeName: widget.payment.empleadoNombreCompleto,
+      );
+      
+      // Descargar PDF
+      final fileName = InvoiceService.generateFileName(widget.payment);
+      InvoiceService.downloadPDF(pdfBytes, fileName);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Factura descargada: $fileName', style: GoogleFonts.montserrat()),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error generando factura: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al generar factura: $e', style: GoogleFonts.montserrat()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingPDF = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -925,7 +995,7 @@ class _PaymentCard extends StatelessWidget {
                           Row(
                             children: [
                               Text(
-                                'Factura #${payment.numReferencia}',
+                                'Factura #${widget.payment.numReferencia}',
                                 style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w700),
                               ),
                               const SizedBox(width: 8),
@@ -936,7 +1006,7 @@ class _PaymentCard extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  payment.metodo,
+                                  widget.payment.metodo,
                                   style: GoogleFonts.montserrat(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -948,24 +1018,24 @@ class _PaymentCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            dateFormat.format(payment.fechaPago),
+                            dateFormat.format(widget.payment.fechaPago),
                             style: GoogleFonts.montserrat(fontSize: 13, color: Colors.grey[600]),
                           ),
-                          if (payment.bancoEmisor != null) ...[
+                          if (widget.payment.bancoEmisor != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              payment.bancoEmisor!,
+                              widget.payment.bancoEmisor!,
                               style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[500]),
                             ),
                           ],
-                          if (payment.empleadoNombre != null) ...[
+                          if (widget.payment.empleadoNombre != null) ...[
                             const SizedBox(height: 4),
                             Row(
                               children: [
                                 Icon(Icons.person, size: 14, color: Colors.grey[600]),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Registrado por: ${payment.empleadoNombreCompleto}',
+                                  'Registrado por: ${widget.payment.empleadoNombreCompleto}',
                                   style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w500),
                                 ),
                               ],
@@ -978,7 +1048,7 @@ class _PaymentCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          NumberFormatter.formatCurrencyWithDecimals(payment.monto),
+                          NumberFormatter.formatCurrencyWithDecimals(widget.payment.monto),
                           style: GoogleFonts.montserrat(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -987,8 +1057,31 @@ class _PaymentCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Reserva #${payment.idReserva}',
+                          'Reserva #${widget.payment.idReserva}',
                           style: GoogleFonts.montserrat(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                        const SizedBox(height: 8),
+                        // Botón de descarga de factura
+                        ElevatedButton.icon(
+                          onPressed: _isGeneratingPDF ? null : _downloadInvoice,
+                          icon: _isGeneratingPDF
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.download, size: 16),
+                          label: Text(
+                            _isGeneratingPDF ? 'Generando...' : 'Descargar',
+                            style: GoogleFonts.montserrat(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF3D1F6E),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
                         ),
                       ],
                     ),
