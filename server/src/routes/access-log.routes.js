@@ -59,10 +59,36 @@ router.put('/:id/logout', async (req, res) => {
       return res.status(404).json({ error: 'Log no encontrado' });
     }
 
+    // Convertir ambas fechas a UTC para evitar problemas de zona horaria
     const fechaIngreso = new Date(logs[0].fecha_hora_ingreso);
     
-    // Calcular duración en milisegundos
-    const duracionMs = fechaHoraSalida.getTime() - fechaIngreso.getTime();
+    // Asegurarse de que ambas fechas estén en UTC
+    const ingresoUTC = Date.UTC(
+      fechaIngreso.getUTCFullYear(),
+      fechaIngreso.getUTCMonth(),
+      fechaIngreso.getUTCDate(),
+      fechaIngreso.getUTCHours(),
+      fechaIngreso.getUTCMinutes(),
+      fechaIngreso.getUTCSeconds()
+    );
+    
+    const salidaUTC = Date.UTC(
+      fechaHoraSalida.getUTCFullYear(),
+      fechaHoraSalida.getUTCMonth(),
+      fechaHoraSalida.getUTCDate(),
+      fechaHoraSalida.getUTCHours(),
+      fechaHoraSalida.getUTCMinutes(),
+      fechaHoraSalida.getUTCSeconds()
+    );
+    
+    // Calcular duración en milisegundos usando UTC
+    const duracionMs = salidaUTC - ingresoUTC;
+    
+    console.log('🕐 Debug duración:');
+    console.log('  - Fecha ingreso (original):', logs[0].fecha_hora_ingreso);
+    console.log('  - Fecha ingreso (UTC):', new Date(ingresoUTC).toISOString());
+    console.log('  - Fecha salida (UTC):', new Date(salidaUTC).toISOString());
+    console.log('  - Duración (ms):', duracionMs);
     
     // Convertir a horas y minutos
     const totalMinutes = Math.floor(duracionMs / (1000 * 60));
