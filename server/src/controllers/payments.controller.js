@@ -33,6 +33,16 @@ export const getPaymentsByReservation = async (req, res) => {
   }
 };
 
+export const getPaymentsByQuote = async (req, res) => {
+  try {
+    const payments = await paymentsService.findPaymentsByQuote(req.params.quoteId);
+    res.json(payments);
+  } catch (error) {
+    console.error('Error obteniendo pagos de cotización:', error);
+    res.status(500).json({ error: 'Error obteniendo pagos de cotización' });
+  }
+};
+
 export const getPaymentsByEmployee = async (req, res) => {
   try {
     const payments = await paymentsService.findPaymentsByEmployee(req.params.employeeId);

@@ -6,6 +6,7 @@ import '../models/quote.dart';
 import '../models/client.dart';
 import '../models/tour_package.dart';
 import '../models/companion.dart';
+import '../models/destination.dart';
 import '../services/storage_service.dart';
 import '../services/audit_service.dart';
 import '../models/audit_log.dart';
@@ -28,12 +29,18 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
 
   List<Client> _clients = [];
   List<TourPackage> _packages = [];
+  List<Destination> _destinations = [];
   int? _selectedClientId;
   int? _selectedPackageId;
+  int? _selectedDestinationId;
+  bool _isPackage = true; // true = paquete, false = destino
   bool _isAdmin = false;
   DateTime? _fechaInicio;
   DateTime? _fechaFin;
   double _precioEstimado = 0.0;
+  
+  // Controllers para destinos individuales
+  final TextEditingController _precioDestinoController = TextEditingController();
   
   // Acompañantes
   List<Companion> _acompanantes = [];
@@ -50,11 +57,18 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
     super.initState();
     _selectedClientId = widget.quote?.idCliente;
     _selectedPackageId = widget.quote?.idPaquete;
+    _selectedDestinationId = widget.quote?.idDestino;
+    _isPackage = widget.quote?.idPaquete != null;
     _fechaInicio = widget.quote?.fechaInicioViaje;
     _fechaFin = widget.quote?.fechaFinViaje;
     _precioEstimado = widget.quote?.precioEstimado ?? 0.0;
     _acompanantes = widget.quote?.acompanantes ?? [];
     _tieneAcompanantes = _acompanantes.isNotEmpty;
+    
+    // Inicializar precio de destino si existe
+    if (widget.quote?.precioDestino != null) {
+      _precioDestinoController.text = widget.quote!.precioDestino!.toStringAsFixed(2);
+    }
     
     _loadData();
   }
@@ -87,6 +101,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
         }
         
         final packages = await _storageService.getPackages();
+        final destinations = await _storageService.getDestinations();
         
         debugPrint('🔍 Es admin: $_isAdmin, Editando: ${widget.quote != null}');
         debugPrint('🔍 Cliente seleccionado ID: $_selectedClientId');
@@ -99,6 +114,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
           setState(() {
             _clients = clients;
             _packages = packages;
+            _destinations = destinations;
             _isLoading = false;
           });
         }
@@ -119,14 +135,37 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
       _markAsChanged();
       if (packageId != null) {
         final package = _packages.firstWhere((p) => p.id == packageId);
-        // Calcular precio automáticamente
-        _precioEstimado = package.precioBase;
+        // Calcular precio automáticamente con acompañantes
+        _calculatePrice();
         // Sugerir duración
         if (_fechaInicio != null) {
           _fechaFin = _fechaInicio!.add(Duration(days: package.duracionDias));
         }
       }
     });
+  }
+
+  void _calculatePrice() {
+    if (_isPackage && _selectedPackageId != null) {
+      final package = _packages.firstWhere((p) => p.id == _selectedPackageId);
+      final numPersonas = 1 + _acompanantes.length;
+      _precioEstimado = package.precioBase * numPersonas;
+    } else if (!_isPackage && _selectedDestinationId != null && _precioDestinoController.text.isNotEmpty) {
+      try {
+        final precioDestino = double.parse(_precioDestinoController.text);
+        final numPersonas = 1 + _acompanantes.length;
+        _precioEstimado = precioDestino * numPersonas;
+      } catch (e) {
+        debugPrint('Error calculando precio: $e');
+      }
+    }
+  }
+
+  void _onDestinationPriceChanged() {
+    _markAsChanged();
+    if (!_isPackage && _selectedDestinationId != null && _precioDestinoController.text.isNotEmpty) {
+      _calculatePrice();
+    }
   }
 
   Future<void> _selectDateRange(BuildContext context) async {
@@ -202,12 +241,18 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
         throw Exception('ID de usuario no disponible');
       }
 
+      final precioDestinoText = _precioDestinoController.text.trim();
+      
       final quote = Quote(
         id: widget.quote?.id,
         fechaInicioViaje: _fechaInicio!,
         fechaFinViaje: _fechaFin!,
         precioEstimado: _precioEstimado,
-        idPaquete: _selectedPackageId,
+        idPaquete: _isPackage ? _selectedPackageId : null,
+        idDestino: !_isPackage ? _selectedDestinationId : null,
+        precioDestino: !_isPackage && precioDestinoText.isNotEmpty 
+            ? double.parse(precioDestinoText) 
+            : null,
         idCliente: _selectedClientId!,
         idEmpleado: currentUser!.idUsuario!,
         acompanantes: _acompanantes,
@@ -335,49 +380,146 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                   ),
                   const SizedBox(height: 24),
                   _buildSection(
-                    title: 'Paquete Turístico (Opcional)',
+                    title: 'Tipo de Viaje',
                     children: [
-                      DropdownButtonFormField<int>(
-                        value: _selectedPackageId,
-                        decoration: InputDecoration(
-                          labelText: 'Seleccionar paquete',
-                          labelStyle: GoogleFonts.montserrat(fontSize: 13),
-                          hintText: _packages.isEmpty ? 'No hay paquetes disponibles' : 'Sin paquete (destino individual)',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          prefixIcon: const Icon(Icons.card_travel, size: 20),
-                        ),
-                        items: _packages.map((package) {
-                          return DropdownMenuItem<int>(
-                            value: package.id,
-                            child: Text(
-                              '${package.nombre} (${package.duracionDias} días - ${NumberFormatter.formatCurrency(package.precioBase)})',
-                              style: GoogleFonts.montserrat(fontSize: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: Text('Paquete Turístico', style: GoogleFonts.montserrat(fontSize: 14)),
+                              value: true,
+                              groupValue: _isPackage,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isPackage = value!;
+                                  _selectedPackageId = null;
+                                  _selectedDestinationId = null;
+                                  _precioDestinoController.clear();
+                                  _precioEstimado = 0.0;
+                                });
+                                _markAsChanged();
+                              },
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
                             ),
-                          );
-                        }).toList(),
-                        onChanged: _onPackageSelected,
+                          ),
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: Text('Destino Individual', style: GoogleFonts.montserrat(fontSize: 14)),
+                              value: false,
+                              groupValue: _isPackage,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isPackage = value!;
+                                  _selectedPackageId = null;
+                                  _selectedDestinationId = null;
+                                  _precioDestinoController.clear();
+                                  _precioEstimado = 0.0;
+                                });
+                                _markAsChanged();
+                              },
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ],
                       ),
-                      if (_selectedPackageId != null) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
+                      const SizedBox(height: 16),
+                      if (_isPackage) ...[
+                        DropdownButtonFormField<int>(
+                          value: _selectedPackageId,
+                          decoration: InputDecoration(
+                            labelText: 'Seleccionar paquete *',
+                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                            hintText: _packages.isEmpty ? 'No hay paquetes disponibles' : 'Selecciona un paquete',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            prefixIcon: const Icon(Icons.card_travel, size: 20),
                           ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.info_outline, size: 16, color: Colors.blue),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'El precio se calculó automáticamente según el paquete',
-                                  style: GoogleFonts.montserrat(fontSize: 12, color: Colors.blue[900]),
-                                ),
+                          items: _packages.map((package) {
+                            return DropdownMenuItem<int>(
+                              value: package.id,
+                              child: Text(
+                                '${package.nombre} (${package.duracionDias} días - ${NumberFormatter.formatCurrency(package.precioBase)})',
+                                style: GoogleFonts.montserrat(fontSize: 14),
                               ),
-                            ],
+                            );
+                          }).toList(),
+                          onChanged: _onPackageSelected,
+                          validator: (value) {
+                            if (_isPackage && value == null) {
+                              return 'Selecciona un paquete';
+                            }
+                            return null;
+                          },
+                        ),
+                      ] else ...[
+                        DropdownButtonFormField<int>(
+                          value: _selectedDestinationId,
+                          decoration: InputDecoration(
+                            labelText: 'Seleccionar destino *',
+                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                            hintText: _destinations.isEmpty ? 'No hay destinos disponibles' : 'Selecciona un destino',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            prefixIcon: const Icon(Icons.location_on, size: 20),
                           ),
+                          items: _destinations.map((destination) {
+                            return DropdownMenuItem<int>(
+                              value: destination.id,
+                              child: Text(
+                                '${destination.ciudad}, ${destination.pais}',
+                                style: GoogleFonts.montserrat(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedDestinationId = value;
+                              // Auto-completar precio si el destino tiene precio base
+                              if (value != null) {
+                                final destination = _destinations.firstWhere((d) => d.id == value);
+                                if (destination.precioBase != null && destination.precioBase! > 0) {
+                                  _precioDestinoController.text = destination.precioBase!.toStringAsFixed(2);
+                                  _calculatePrice();
+                                }
+                              }
+                            });
+                            _markAsChanged();
+                          },
+                          validator: (value) {
+                            if (!_isPackage && value == null) {
+                              return 'Selecciona un destino';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _precioDestinoController,
+                          decoration: InputDecoration(
+                            labelText: 'Precio por persona *',
+                            labelStyle: GoogleFonts.montserrat(fontSize: 13),
+                            hintText: '0.00',
+                            prefixText: '\$ ',
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            prefixIcon: const Icon(Icons.attach_money, size: 20),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                          ],
+                          onChanged: (value) => _onDestinationPriceChanged(),
+                          validator: (value) {
+                            if (!_isPackage && (value == null || value.isEmpty)) {
+                              return 'Ingresa el precio por persona';
+                            }
+                            if (!_isPackage && double.tryParse(value!) == null) {
+                              return 'Ingresa un precio válido';
+                            }
+                            return null;
+                          },
                         ),
                       ],
                     ],
@@ -679,6 +821,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
     if (result != null) {
       setState(() {
         _acompanantes.add(result);
+        _calculatePrice(); // Recalcular precio con nuevo acompañante
       });
       _markAsChanged();
     }
@@ -707,6 +850,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
     if (result != null) {
       setState(() {
         _acompanantes[index] = result;
+        _calculatePrice(); // Recalcular precio
       });
       _markAsChanged();
     }
@@ -715,6 +859,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
   void _removeAcompanante(int index) {
     setState(() {
       _acompanantes.removeAt(index);
+      _calculatePrice(); // Recalcular precio sin este acompañante
     });
     _markAsChanged();
   }

@@ -6,6 +6,7 @@ const router = express.Router();
 router.get('/', paymentsController.getAllPayments);
 router.get('/:id', paymentsController.getPaymentById);
 router.get('/reservation/:reservationId', paymentsController.getPaymentsByReservation);
+router.get('/quote/:quoteId', paymentsController.getPaymentsByQuote);
 router.get('/employee/:employeeId', paymentsController.getPaymentsByEmployee);
 router.post('/', paymentsController.createPayment);
 router.put('/:id', paymentsController.updatePayment);

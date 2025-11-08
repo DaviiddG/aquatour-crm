@@ -897,7 +897,13 @@ class _PaymentCardState extends State<_PaymentCard> {
     try {
       // Obtener datos necesarios para la factura
       Reservation? reservation;
+      Quote? quote;
       Client? client;
+      String? packageName;
+      String? destinationName;
+      double? totalReserva;
+      double? totalPagado;
+      double? saldoPendiente;
       
       if (widget.payment.idReserva != null) {
         try {
@@ -907,8 +913,103 @@ class _PaymentCardState extends State<_PaymentCard> {
           // Obtener cliente de la reserva
           final clients = await _storageService.getClients();
           client = clients.firstWhere((c) => c.id == reservation!.idCliente);
+          
+          // Obtener nombre del paquete o destino
+          print('🔍 Reserva idPaquete: ${reservation.idPaquete}, idDestino: ${reservation.idDestino}');
+          
+          if (reservation.idPaquete != null) {
+            try {
+              final packages = await _storageService.getPackages();
+              print('📦 Paquetes disponibles: ${packages.length}');
+              final package = packages.firstWhere((p) => p.id == reservation!.idPaquete);
+              packageName = package.nombre;
+              print('✅ Paquete encontrado: $packageName');
+            } catch (e) {
+              print('❌ Error obteniendo paquete: $e');
+            }
+          } else if (reservation.idDestino != null) {
+            try {
+              final destinations = await _storageService.getDestinations();
+              print('🌍 Destinos disponibles: ${destinations.length}');
+              final destination = destinations.firstWhere((d) => d.id == reservation!.idDestino);
+              destinationName = '${destination.ciudad}, ${destination.pais}';
+              print('✅ Destino encontrado: $destinationName');
+            } catch (e) {
+              print('❌ Error obteniendo destino: $e');
+            }
+          } else {
+            print('⚠️ Reserva sin paquete ni destino');
+          }
+          
+          // Calcular totales de pagos
+          totalReserva = reservation.totalPago;
+          final allPayments = await _storageService.getPaymentsByReservation(reservation.id!);
+          totalPagado = allPayments.fold<double>(0, (sum, p) => sum + p.monto);
+          saldoPendiente = totalReserva - totalPagado;
+          
+          print('💰 Total Reserva: $totalReserva, Total Pagado: $totalPagado, Saldo: $saldoPendiente');
         } catch (e) {
           debugPrint('Error obteniendo reserva/cliente: $e');
+        }
+      } else if (widget.payment.idCotizacion != null) {
+        // Cargar cotización
+        try {
+          final quotes = await _storageService.getQuotes();
+          quote = quotes.cast<Quote?>().firstWhere(
+            (q) => q?.id == widget.payment.idCotizacion,
+            orElse: () => null,
+          );
+          
+          if (quote == null) {
+            print('⚠️ No se encontró la cotización #${widget.payment.idCotizacion}');
+            throw Exception('Cotización no encontrada');
+          }
+          
+          print('✅ Cotización encontrada: #${quote.id}');
+          
+          // Obtener cliente de la cotización
+          final clients = await _storageService.getClients();
+          client = clients.cast<Client?>().firstWhere(
+            (c) => c?.id == quote!.idCliente,
+            orElse: () => null,
+          );
+          
+          // Obtener nombre del paquete o destino
+          print('🔍 Cotización idPaquete: ${quote.idPaquete}, idDestino: ${quote.idDestino}');
+          
+          if (quote.idPaquete != null) {
+            try {
+              final packages = await _storageService.getPackages();
+              print('📦 Paquetes disponibles: ${packages.length}');
+              final package = packages.firstWhere((p) => p.id == quote!.idPaquete);
+              packageName = package.nombre;
+              print('✅ Paquete encontrado: $packageName');
+            } catch (e) {
+              print('❌ Error obteniendo paquete: $e');
+            }
+          } else if (quote.idDestino != null) {
+            try {
+              final destinations = await _storageService.getDestinations();
+              print('🌍 Destinos disponibles: ${destinations.length}');
+              final destination = destinations.firstWhere((d) => d.id == quote!.idDestino);
+              destinationName = '${destination.ciudad}, ${destination.pais}';
+              print('✅ Destino encontrado: $destinationName');
+            } catch (e) {
+              print('❌ Error obteniendo destino: $e');
+            }
+          } else {
+            print('⚠️ Cotización sin paquete ni destino');
+          }
+          
+          // Calcular totales de pagos
+          totalReserva = quote.precioEstimado;
+          final allPayments = await _storageService.getPaymentsByQuote(quote.id!);
+          totalPagado = allPayments.fold<double>(0, (sum, p) => sum + p.monto);
+          saldoPendiente = totalReserva - totalPagado;
+          
+          print('💰 Total Cotización: $totalReserva, Total Pagado: $totalPagado, Saldo: $saldoPendiente');
+        } catch (e) {
+          debugPrint('Error obteniendo cotización/cliente: $e');
         }
       }
       
@@ -916,8 +1017,14 @@ class _PaymentCardState extends State<_PaymentCard> {
       final pdfBytes = await InvoiceService.generateInvoice(
         payment: widget.payment,
         reservation: reservation,
+        quote: quote,
         client: client,
         employeeName: widget.payment.empleadoNombreCompleto,
+        packageName: packageName,
+        destinationName: destinationName,
+        totalReserva: totalReserva,
+        totalPagado: totalPagado,
+        saldoPendiente: saldoPendiente,
       );
       
       // Descargar PDF

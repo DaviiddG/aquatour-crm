@@ -18,6 +18,8 @@ const baseSelect = `
     r.fecha_fin_viaje AS fechaFinViaje,
     r.id_cliente AS idCliente,
     r.id_paquete AS idPaquete,
+    r.id_destino AS idDestino,
+    r.precio_destino AS precioDestino,
     r.id_empleado AS idEmpleado,
     u.nombre AS empleadoNombre,
     u.apellido AS empleadoApellido,

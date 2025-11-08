@@ -748,6 +748,16 @@ class StorageService {
     }
   }
 
+  Future<List<Payment>> getPaymentsByQuote(int idCotizacion) async {
+    try {
+      final paymentsData = await _apiService.getPaymentsByQuote(idCotizacion, _authToken);
+      return paymentsData.map((data) => Payment.fromMap(data)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo pagos de la cotización: $e');
+      return [];
+    }
+  }
+
   Future<Payment> savePayment(Payment payment) async {
     try {
       final paymentData = payment.toMap();

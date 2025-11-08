@@ -449,6 +449,12 @@ class ApiService {
     return [];
   }
 
+  Future<List<dynamic>> getPaymentsByQuote(int idCotizacion, String? token) async {
+    final response = await _get('/payments/quote/$idCotizacion', token: token);
+    if (response is List<dynamic>) return response;
+    return [];
+  }
+
   Future<Map<String, dynamic>> createPayment(Map<String, dynamic> paymentData, String? token) async {
     final response = await _post('/payments', paymentData, token: token);
     return response;

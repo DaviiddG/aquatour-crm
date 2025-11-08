@@ -290,10 +290,13 @@ class _PaymentEditScreenState extends State<PaymentEditScreen> {
         }
       });
     } else if (_tipoPago == 'cotizacion' && _selectedQuoteId != null) {
-      // Para cotizaciones, el saldo pendiente es el precio estimado completo
+      // Para cotizaciones, calcular el saldo pendiente restando pagos realizados
       final quote = _quotes.firstWhere((q) => q.id == _selectedQuoteId);
+      final payments = await _storageService.getPaymentsByQuote(_selectedQuoteId!);
+      final totalPagado = payments.fold<double>(0, (sum, payment) => sum + payment.monto);
+      
       setState(() {
-        _saldoPendiente = quote.precioEstimado;
+        _saldoPendiente = quote.precioEstimado - totalPagado;
       });
     }
   }

@@ -40,6 +40,12 @@ export const findPaymentsByReservation = async (idReserva) => {
   return rows;
 };
 
+export const findPaymentsByQuote = async (idCotizacion) => {
+  const [rows] = await query(`${baseSelect} WHERE p.id_cotizacion = ? ORDER BY p.fecha_pago DESC`, [idCotizacion]);
+  console.log(`📋 Pagos de cotización ${idCotizacion}: ${rows.length}`);
+  return rows;
+};
+
 export const findPaymentsByEmployee = async (idUsuarioOrEmpleado) => {
   console.log(`🔍 Buscando pagos para empleado id=${idUsuarioOrEmpleado}`);
   
@@ -70,13 +76,21 @@ export const createPayment = async (payload) => {
   const fechaPago = payload.fechaPago || payload.fecha_pago || new Date().toISOString();
   const metodo = payload.metodo;
   const bancoEmisor = payload.bancoEmisor || payload.banco_emisor;
-  const numReferencia = payload.numReferencia || payload.num_referencia;
+  let numReferencia = payload.numReferencia || payload.num_referencia;
   const monto = payload.monto;
   const idReserva = payload.idReserva || payload.id_reserva || null;
   const idCotizacion = payload.idCotizacion || payload.id_cotizacion || null;
 
+  // Si num_referencia es 'AUTO' o está vacío, generar uno único
+  if (!numReferencia || numReferencia === 'AUTO') {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    numReferencia = `REF-${timestamp}-${random}`;
+    console.log(`🔢 Número de referencia generado automáticamente: ${numReferencia}`);
+  }
+
   // Validar que tenga al menos una reserva o cotización
-  if (!metodo || !numReferencia || !monto || (!idReserva && !idCotizacion)) {
+  if (!metodo || !monto || (!idReserva && !idCotizacion)) {
     const error = new Error('Faltan campos obligatorios para crear el pago (debe tener reserva o cotización)');
     error.status = 400;
     throw error;

@@ -308,6 +308,12 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
         throw Exception('El precio total es inválido: "$totalPagoText"');
       }
       
+      print('🔍 ANTES DE CREAR RESERVA:');
+      print('  - _isPackage: $_isPackage');
+      print('  - _selectedPackageId: $_selectedPackageId');
+      print('  - _selectedDestinationId: $_selectedDestinationId');
+      print('  - precioDestinoText: "$precioDestinoText"');
+      
       final reservation = Reservation(
         id: widget.reservation?.id,
         estado: ReservationStatus.pendiente,
@@ -325,7 +331,10 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
         notas: _notasController.text.trim().isEmpty ? null : _notasController.text.trim(),
       );
 
-      debugPrint('🔍 Creando reserva con idEmpleado: ${currentUser.idUsuario}, idPaquete: $_selectedPackageId');
+      print('🔍 RESERVA CREADA:');
+      print('  - idPaquete: ${reservation.idPaquete}');
+      print('  - idDestino: ${reservation.idDestino}');
+      print('  - precioDestino: ${reservation.precioDestino}');
 
       await _storageService.saveReservation(reservation);
       

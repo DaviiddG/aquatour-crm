@@ -26,6 +26,8 @@ class Quote {
   final DateTime fechaFinViaje;
   final double precioEstimado;
   final int? idPaquete;
+  final int? idDestino;
+  final double? precioDestino;
   final int idCliente;
   final int idEmpleado;
   final String? empleadoNombre;
@@ -39,6 +41,8 @@ class Quote {
     required this.fechaFinViaje,
     required this.precioEstimado,
     this.idPaquete,
+    this.idDestino,
+    this.precioDestino,
     required this.idCliente,
     required this.idEmpleado,
     this.empleadoNombre,
@@ -89,6 +93,8 @@ class Quote {
       fechaFinViaje: _parseDate(map['fechaFinViaje'] ?? map['fecha_fin_viaje']),
       precioEstimado: _parseDouble(map['precioEstimado'] ?? map['precio_estimado']) ?? 0.0,
       idPaquete: _parseInt(map['idPaquete'] ?? map['id_paquete']),
+      idDestino: _parseInt(map['idDestino'] ?? map['id_destino']),
+      precioDestino: _parseDouble(map['precioDestino'] ?? map['precio_destino']),
       idCliente: _parseInt(map['idCliente'] ?? map['id_cliente']) ?? 0,
       idEmpleado: _parseInt(map['idEmpleado'] ?? map['id_empleado']) ?? 0,
       empleadoNombre: map['empleadoNombre']?.toString(),
@@ -105,6 +111,8 @@ class Quote {
       'fecha_fin_viaje': fechaFinViaje.toIso8601String().split('T')[0],
       'precio_estimado': precioEstimado,
       'id_paquete': idPaquete,
+      'id_destino': idDestino,
+      'precio_destino': precioDestino,
       'id_cliente': idCliente,
       'id_empleado': idEmpleado,
       'estado': estado.name,
@@ -118,6 +126,8 @@ class Quote {
     DateTime? fechaFinViaje,
     double? precioEstimado,
     int? idPaquete,
+    int? idDestino,
+    double? precioDestino,
     int? idCliente,
     int? idEmpleado,
     String? empleadoNombre,
@@ -131,6 +141,8 @@ class Quote {
       fechaFinViaje: fechaFinViaje ?? this.fechaFinViaje,
       precioEstimado: precioEstimado ?? this.precioEstimado,
       idPaquete: idPaquete ?? this.idPaquete,
+      idDestino: idDestino ?? this.idDestino,
+      precioDestino: precioDestino ?? this.precioDestino,
       idCliente: idCliente ?? this.idCliente,
       idEmpleado: idEmpleado ?? this.idEmpleado,
       empleadoNombre: empleadoNombre ?? this.empleadoNombre,
