@@ -238,21 +238,43 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
     );
 
     if (picked != null) {
-      // Validar duración mínima si hay paquete seleccionado
+      // Validar que no sean fechas pasadas
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      if (picked.start.isBefore(today)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No puedes seleccionar fechas pasadas'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Validar duración exacta si hay paquete seleccionado
       if (minDuration != null) {
         final selectedDuration = picked.end.difference(picked.start).inDays + 1;
-        if (selectedDuration < minDuration) {
+        if (selectedDuration != minDuration) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('El paquete requiere mínimo $minDuration días. Seleccionaste $selectedDuration días.'),
+                content: Text(
+                  'El paquete turístico requiere exactamente $minDuration días.\n'
+                  'Has seleccionado $selectedDuration días.\n'
+                  'Por favor, ajusta las fechas.',
+                ),
                 backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 5),
               ),
             );
           }
           return;
         }
       }
+      
       setState(() {
         _fechaInicio = picked.start;
         _fechaFin = picked.end;
@@ -479,6 +501,9 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                                   _selectedDestinationId = null;
                                   _precioDestinoController.clear();
                                   _totalPagoController.clear();
+                                  // Limpiar fechas al cambiar tipo de reserva
+                                  _fechaInicio = null;
+                                  _fechaFin = null;
                                 });
                                 _markAsChanged();
                               },
@@ -497,6 +522,9 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                                   _selectedDestinationId = null;
                                   _precioDestinoController.clear();
                                   _totalPagoController.clear();
+                                  // Limpiar fechas al cambiar tipo de reserva
+                                  _fechaInicio = null;
+                                  _fechaFin = null;
                                 });
                                 _markAsChanged();
                               },
@@ -637,11 +665,84 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                   _buildSection(
                     title: 'Fechas del Viaje',
                     children: [
-                      InkWell(
-                        onTap: () => _selectDateRange(context),
+                      // Mostrar fecha actual si es edición
+                      if (widget.reservation != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3D1F6E).withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF3D1F6E).withOpacity(0.2)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 16, color: Color(0xFF3D1F6E)),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Fecha programada actualmente:',
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF3D1F6E),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${DateFormat('dd/MM/yyyy').format(widget.reservation!.fechaInicioViaje)} - ${DateFormat('dd/MM/yyyy').format(widget.reservation!.fechaFinViaje)}',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              Text(
+                                '(${widget.reservation!.fechaFinViaje.difference(widget.reservation!.fechaInicioViaje).inDays + 1} días)',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Botón de reprogramar
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _selectDateRange(context),
+                            icon: const Icon(Icons.event_repeat, size: 18),
+                            label: Text(
+                              'Reprogramar viaje',
+                              style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: const Color(0xFF3D1F6E),
+                              side: const BorderSide(color: Color(0xFF3D1F6E), width: 1.5),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      
+                      // Campo para mostrar/seleccionar fechas (solo clic si es nueva reserva)
+                      IgnorePointer(
+                        ignoring: widget.reservation != null, // Deshabilitar clic si es edición
                         child: InputDecorator(
                           decoration: InputDecoration(
-                            labelText: 'Rango de fechas del viaje *',
+                            labelText: widget.reservation != null 
+                                ? 'Nueva fecha del viaje *' 
+                                : 'Rango de fechas del viaje *',
                             labelStyle: GoogleFonts.montserrat(fontSize: 13),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -653,18 +754,42 @@ class _ReservationEditScreenState extends State<ReservationEditScreen> {
                               borderRadius: BorderRadius.circular(8),
                               borderSide: const BorderSide(color: Color(0xFF3D1F6E), width: 1.5),
                             ),
+                            filled: widget.reservation != null,
+                            fillColor: widget.reservation != null ? Colors.grey[50] : null,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _fechaInicio != null && _fechaFin != null
-                                    ? '${DateFormat('dd/MM/yyyy').format(_fechaInicio!)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin!)}'
-                                    : 'Seleccionar fechas',
-                                style: GoogleFonts.montserrat(fontSize: 14),
-                              ),
-                              const Icon(Icons.date_range, size: 20, color: Color(0xFF3D1F6E)),
-                            ],
+                          child: InkWell(
+                            onTap: widget.reservation == null ? () => _selectDateRange(context) : null,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _fechaInicio != null && _fechaFin != null
+                                        ? '${DateFormat('dd/MM/yyyy').format(_fechaInicio!)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin!)}'
+                                        : widget.reservation != null 
+                                            ? 'Usa el botón "Reprogramar viaje"'
+                                            : _isPackage 
+                                                ? 'Selecciona un paquete primero'
+                                                : 'Seleccionar fechas',
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 14,
+                                      color: widget.reservation != null && _fechaInicio == null 
+                                          ? Colors.grey[500] 
+                                          : (_isPackage && _selectedPackageId == null)
+                                              ? Colors.grey[500]
+                                              : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.date_range, 
+                                  size: 20, 
+                                  color: widget.reservation != null && _fechaInicio == null
+                                      ? Colors.grey[400]
+                                      : const Color(0xFF3D1F6E),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
