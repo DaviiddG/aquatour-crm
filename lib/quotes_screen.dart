@@ -399,6 +399,8 @@ class _QuoteCardState extends State<_QuoteCard> {
                           '${DateFormat('dd/MM/yyyy').format(widget.quote.fechaInicioViaje)} - ${DateFormat('dd/MM/yyyy').format(widget.quote.fechaFinViaje)} • \$${widget.quote.precioEstimado.toStringAsFixed(2)}',
                           style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[600]),
                         ),
+                        const SizedBox(height: 4),
+                        _ClientNameWidget(clientId: widget.quote.idCliente),
                       ],
                     ),
                   ),
@@ -643,6 +645,77 @@ class _PlaceholderCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ClientNameWidget extends StatefulWidget {
+  const _ClientNameWidget({required this.clientId});
+
+  final int clientId;
+
+  @override
+  State<_ClientNameWidget> createState() => _ClientNameWidgetState();
+}
+
+class _ClientNameWidgetState extends State<_ClientNameWidget> {
+  final StorageService _storageService = StorageService();
+  String _clientName = '';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClientName();
+  }
+
+  Future<void> _loadClientName() async {
+    try {
+      final clients = await _storageService.getClients();
+      final client = clients.firstWhere(
+        (c) => c.id == widget.clientId,
+        orElse: () => throw Exception('Cliente no encontrado'),
+      );
+      
+      if (mounted) {
+        setState(() {
+          _clientName = client.nombreCompleto;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _clientName = 'Cliente #${widget.clientId}';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const SizedBox(
+        height: 16,
+        width: 16,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
+    return Row(
+      children: [
+        const Icon(Icons.person_outline, size: 14, color: Color(0xFF3D1F6E)),
+        const SizedBox(width: 4),
+        Text(
+          _clientName,
+          style: GoogleFonts.montserrat(
+            fontSize: 11,
+            color: const Color(0xFF3D1F6E),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }
