@@ -80,7 +80,8 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
         final users = await _storageService.getAllUsers();
         _teamMembers = users.where((user) => user.rol == UserRole.empleado).toList()
           ..sort((a, b) => a.nombreCompleto.compareTo(b.nombreCompleto));
-        _selectedUserId = _teamMembers.isNotEmpty ? _teamMembers.first.idUsuario : null;
+        // Iniciar con vista general por defecto
+        _selectedUserId = -1;
       } else {
         _selectedUserId = currentUser.idUsuario;
       }
@@ -105,7 +106,9 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
 
   Future<void> _loadPerformanceData(int userId) async {
     try {
-      final metrics = await _storageService.getPerformanceMetrics(userId);
+      final metrics = userId == -1
+          ? await _storageService.getGlobalPerformanceMetrics()
+          : await _storageService.getPerformanceMetrics(userId);
       if (mounted) {
         setState(() {
           _metrics = metrics;
@@ -117,12 +120,45 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
   }
 
   Future<void> _loadClients(int userId) async {
+    setState(() => _clientsLoading = true);
     try {
-      if (mounted) setState(() => _clientsLoading = true);
-      final clients = await _storageService.getEmployeeClients(userId);
+      // Si es vista general, obtener todos los clientes
+      final clients = userId == -1
+          ? await _storageService.getClients()
+          : await _storageService.getClients(forEmployeeId: userId);
+      
+      // Obtener información de los asesores si es vista general
+      Map<int, String> employeeNames = {};
+      if (userId == -1) {
+        for (var employee in _teamMembers) {
+          if (employee.idUsuario != null) {
+            employeeNames[employee.idUsuario!] = employee.nombreCompleto;
+          }
+        }
+      }
+      
       if (mounted) {
         setState(() {
-          _clients = clients;
+          _clients = clients.map((c) {
+            String? employeeName;
+            if (userId == -1 && c.idEmpleado != null) {
+              employeeName = employeeNames[c.idEmpleado];
+            }
+            
+            return {
+              'id': c.id,
+              'nombre': c.nombreCompleto,
+              'email': c.email,
+              'telefono': c.telefono,
+              'nacionalidad': c.pais,
+              'estado_civil': c.estadoCivil,
+              'preferencias_viaje': c.interes,
+              'fecha_registro': c.fechaRegistro.toString(),
+              'satisfaccion': c.satisfaccion,
+              'asesor': employeeName,
+              'id_empleado': c.idEmpleado,
+            };
+          }).toList();
           _clientsLoading = false;
         });
       }
@@ -226,6 +262,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
 
   String? get _selectedEmployeeName {
     if (_selectedUserId == null) return null;
+    if (_selectedUserId == -1) return 'Vista General del Equipo';
     if (_isManagerView) {
       try {
         return _teamMembers
@@ -308,23 +345,27 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               children: [
                 _buildSummaryItem(
                   'Ventas',
-                  '${sales['completed'] ?? 0}/${sales['total'] ?? 0}',
+                  '${sales['completed'] ?? 0} de ${sales['total'] ?? 0}',
                   Icons.attach_money,
+                  subtitle: 'completadas',
                 ),
                 _buildSummaryItem(
                   'Reservas',
-                  '${reservations['confirmed'] ?? 0}/${reservations['total'] ?? 0}',
+                  '${reservations['paid'] ?? 0} de ${reservations['total'] ?? 0}',
                   Icons.event_available_rounded,
+                  subtitle: 'pagadas',
                 ),
                 _buildSummaryItem(
                   'Cotizaciones',
-                  '${quotes['accepted'] ?? 0}/${quotes['total'] ?? 0}',
+                  '${quotes['paid'] ?? 0} de ${quotes['total'] ?? 0}',
                   Icons.request_quote_rounded,
+                  subtitle: 'pagadas',
                 ),
                 _buildSummaryItem(
                   'Clientes',
                   '${clients['total'] ?? _clients.length}',
                   Icons.people_rounded,
+                  subtitle: 'registrados',
                 ),
               ],
             ),
@@ -335,43 +376,60 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
   }
 
   Widget _buildEmployeeSelector() {
-    return Row(
-      children: [
-        Expanded(
-          child: DropdownButtonFormField<int>(
-            value: _selectedUserId,
-            decoration: InputDecoration(
-              labelText: 'Selecciona un asesor',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            items: _teamMembers
-                .map(
-                  (user) => DropdownMenuItem<int>(
-                    value: user.idUsuario,
-                    child: Text(user.nombreCompleto),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) {
-              if (value != null) {
-                _onEmployeeChanged(value);
-              }
-            },
+    return DropdownButtonFormField<int>(
+      value: _selectedUserId,
+      decoration: InputDecoration(
+        labelText: 'Selecciona un asesor',
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      items: [
+        // Opción de Vista General
+        DropdownMenuItem<int>(
+          value: -1,
+          child: Row(
+            children: [
+              const Icon(Icons.dashboard, size: 18, color: Color(0xFF3D1F6E)),
+              const SizedBox(width: 8),
+              Text(
+                'Vista General (Todos los asesores)',
+                style: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 12),
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          tooltip: 'Actualizar métricas',
-          onPressed: _selectedUserId == null
-              ? null
-              : () => _onEmployeeChanged(_selectedUserId!),
+        // Separador
+        const DropdownMenuItem<int>(
+          value: null,
+          enabled: false,
+          child: Divider(),
+        ),
+        // Lista de asesores individuales
+        ..._teamMembers.map(
+          (user) => DropdownMenuItem<int>(
+            value: user.idUsuario,
+            child: Text(user.nombreCompleto),
+          ),
         ),
       ],
+      onChanged: (value) {
+        if (value != null) {
+          _onEmployeeChanged(value);
+        }
+      },
     );
   }
 
   Widget _buildClientsSection() {
+    // Determinar el título según el contexto
+    String title;
+    if (_selectedUserId == -1) {
+      title = 'Todos los Clientes Registrados';
+    } else if (_isManagerView) {
+      title = 'Clientes del Asesor';
+    } else {
+      title = 'Tus Clientes Asignados';
+    }
+
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(
@@ -386,14 +444,32 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               children: [
                 const Icon(Icons.people_outline, color: Color(0xFF3D1F6E)),
                 const SizedBox(width: 8),
-                Text(
-                  _isManagerView ? 'Clientes del asesor' : 'Tus clientes asignados',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF3D1F6E),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF3D1F6E),
+                    ),
                   ),
                 ),
+                if (_clients.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3D1F6E).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_clients.length} cliente${_clients.length != 1 ? 's' : ''}',
+                      style: GoogleFonts.montserrat(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF3D1F6E),
+                      ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -431,32 +507,110 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
                         style: const TextStyle(color: Color(0xFF3D1F6E)),
                       ),
                     ),
-                    title: Text(
-                      client['nombre']?.toString() ?? 'Sin nombre',
-                      style: GoogleFonts.montserrat(fontWeight: FontWeight.w600),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            client['nombre']?.toString() ?? 'Sin nombre',
+                            style: GoogleFonts.montserrat(fontWeight: FontWeight.w600, fontSize: 14),
+                          ),
+                        ),
+                        if (client['asesor'] != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3D1F6E).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.person, size: 12, color: Color(0xFF3D1F6E)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  client['asesor'].toString(),
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF3D1F6E),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '${client['nacionalidad'] ?? 'N/A'} • ${client['estado_civil'] ?? 'Estado civil desconocido'}',
-                          style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[700]),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.public, size: 12, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              client['nacionalidad'] ?? 'N/A',
+                              style: GoogleFonts.montserrat(fontSize: 11, color: Colors.grey[700]),
+                            ),
+                            const SizedBox(width: 12),
+                            Icon(Icons.favorite_border, size: 12, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              client['estado_civil'] ?? 'N/A',
+                              style: GoogleFonts.montserrat(fontSize: 11, color: Colors.grey[700]),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          client['preferencias_viaje']?.toString() ?? 'Sin preferencias registradas',
-                          style: GoogleFonts.montserrat(fontSize: 12),
+                        Row(
+                          children: [
+                            Icon(Icons.interests, size: 12, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                client['preferencias_viaje']?.toString() ?? 'Sin preferencias',
+                                style: GoogleFonts.montserrat(fontSize: 11, color: Colors.grey[700]),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          'Registro: ${client['fecha_registro']?.toString().substring(0, 10) ?? 'N/D'} • Satisfacción: ${client['satisfaccion'] ?? 'N/D'}/5',
-                          style: GoogleFonts.montserrat(fontSize: 11, color: Colors.grey[600]),
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              client['fecha_registro']?.toString().substring(0, 10) ?? 'N/D',
+                              style: GoogleFonts.montserrat(fontSize: 11, color: Colors.grey[600]),
+                            ),
+                            const SizedBox(width: 12),
+                            Icon(Icons.star, size: 12, color: Colors.amber[700]),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${client['satisfaccion'] ?? 'N/D'}/5',
+                              style: GoogleFonts.montserrat(fontSize: 11, color: Colors.grey[600]),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    trailing: Text(
-                      '#${client['id_cliente']}',
-                      style: GoogleFonts.montserrat(fontSize: 12, color: Colors.grey[700]),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '#${client['id'] ?? ''}',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
                     ),
                   );
                 },
@@ -467,7 +621,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     );
   }
 
-  Widget _buildSummaryItem(String title, String value, IconData icon) {
+  Widget _buildSummaryItem(String title, String value, IconData icon, {String? subtitle}) {
     return Expanded(
       child: Column(
         children: [
@@ -480,14 +634,28 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
+            textAlign: TextAlign.center,
           ),
+          const SizedBox(height: 2),
           Text(
             title,
             style: GoogleFonts.montserrat(
               fontSize: 12,
-              color: Colors.white70,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
             ),
+            textAlign: TextAlign.center,
           ),
+          if (subtitle != null) ...[
+            Text(
+              subtitle,
+              style: GoogleFonts.montserrat(
+                fontSize: 10,
+                color: Colors.white60,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ],
       ),
     );
@@ -948,6 +1116,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
   Widget _buildDetailedMetrics() {
     final sales = _metrics['sales'] ?? {};
     final reservations = _metrics['reservations'] ?? {};
+    final quotes = _metrics['quotes'] ?? {};
 
     return Card(
       elevation: 3,
@@ -969,9 +1138,16 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
             ),
             const SizedBox(height: 16),
             _buildMetricRow(
-              'Ingresos Totales',
+              'Ventas Totales',
+              NumberFormatter.formatCurrency(sales['completedSalesAmount'] ?? 0),
+              Icons.shopping_cart,
+              subtitle: 'Completamente pagadas',
+            ),
+            _buildMetricRow(
+              'Dinero Total Movido',
               NumberFormatter.formatCurrency(sales['totalRevenue'] ?? 0),
               Icons.attach_money,
+              subtitle: 'Incluye pagos parciales',
             ),
             _buildMetricRow(
               'Reservas Totales',
@@ -979,9 +1155,9 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
               Icons.event_available_rounded,
             ),
             _buildMetricRow(
-              'Venta Promedio',
-              NumberFormatter.formatCurrency(sales['averageSale'] ?? 0),
-              Icons.trending_up,
+              'Cotizaciones Totales',
+              '${quotes['total'] ?? 0}',
+              Icons.request_quote_rounded,
             ),
             const Divider(),
             Text(
@@ -997,7 +1173,7 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
     );
   }
 
-  Widget _buildMetricRow(String label, String value, IconData icon) {
+  Widget _buildMetricRow(String label, String value, IconData icon, {String? subtitle}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -1005,12 +1181,28 @@ class _PerformanceIndicatorsScreenState extends State<PerformanceIndicatorsScree
           Icon(icon, size: 20, color: const Color(0xFF3D1F6E)),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              label,
-              style: GoogleFonts.montserrat(
-                fontSize: 14,
-                color: Colors.black87,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           Text(

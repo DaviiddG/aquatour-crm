@@ -629,30 +629,6 @@ class StorageService {
         (sum, payment) => sum + payment.monto,
       );
       
-      // Calcular ventas completadas vs en proceso
-      // Una venta está completada solo si la reserva está completamente pagada
-      int completedSales = 0;
-      int inProcessSales = 0;
-      
-      // Agrupar reservas únicas que tienen pagos
-      final reservationsWithPayments = <int>{};
-      for (final payment in payments) {
-        if (payment.idReserva != null) {
-          reservationsWithPayments.add(payment.idReserva!);
-        }
-      }
-      
-      for (final reservationId in reservationsWithPayments) {
-        final reservation = reservations.firstWhere((r) => r.id == reservationId);
-        final reservationPayments = await getPaymentsByReservation(reservationId);
-        final totalPaid = reservationPayments.fold<double>(0.0, (sum, p) => sum + p.monto);
-        
-        if (totalPaid >= reservation.totalPago) {
-          completedSales++; // Venta completamente pagada
-        } else {
-          inProcessSales++; // Venta con pago parcial
-        }
-      }
       
       // Calcular métricas de cotizaciones basadas en estado de pago
       final totalQuotes = quotes.length;
@@ -676,14 +652,42 @@ class StorageService {
       // Obtener clientes del empleado
       final clients = await getClients(forEmployeeId: userId);
       
+      // Calcular ventas totales como suma de reservas y cotizaciones pagadas
+      final totalSalesCompleted = paidCount + paidQuotes;
+      final totalSalesInProcess = inProcessCount + partialPaidQuotes;
+      final totalSales = totalSalesCompleted + totalSalesInProcess;
+      
+      // Calcular monto total de ventas completadas (solo las pagadas completamente)
+      double totalCompletedSalesAmount = 0.0;
+      
+      // Sumar montos de reservas pagadas completamente
+      for (final reservation in reservations) {
+        final reservationPayments = await getPaymentsByReservation(reservation.id!);
+        final totalPaid = reservationPayments.fold<double>(0.0, (sum, p) => sum + p.monto);
+        
+        if (totalPaid >= reservation.totalPago) {
+          totalCompletedSalesAmount += reservation.totalPago;
+        }
+      }
+      
+      // Sumar montos de cotizaciones pagadas completamente
+      for (final quote in quotes) {
+        final quotePayments = payments.where((p) => p.idCotizacion == quote.id).toList();
+        final totalPaid = quotePayments.fold<double>(0.0, (sum, p) => sum + p.monto);
+        if (totalPaid >= quote.precioEstimado) {
+          totalCompletedSalesAmount += quote.precioEstimado;
+        }
+      }
+
       return {
         'sales': {
-          'total': completedSales + inProcessSales,
-          'completed': completedSales,
-          'inProcess': inProcessSales,
-          'totalRevenue': totalRevenue,
-          'averageSale': (completedSales + inProcessSales) > 0 
-              ? totalRevenue / (completedSales + inProcessSales) 
+          'total': totalSales,
+          'completed': totalSalesCompleted,
+          'inProcess': totalSalesInProcess,
+          'totalRevenue': totalRevenue, // Todo el dinero movido
+          'completedSalesAmount': totalCompletedSalesAmount, // Solo ventas completadas
+          'averageSale': totalSalesCompleted > 0 
+              ? totalCompletedSalesAmount / totalSalesCompleted 
               : 0.0,
         },
         'reservations': {
@@ -712,6 +716,103 @@ class StorageService {
         'reservations': {'total': 0, 'confirmed': 0, 'pending': 0, 'inProcess': 0, 'paid': 0, 'cancelled': 0},
         'quotes': {'total': 0, 'paid': 0, 'partialPaid': 0, 'pending': 0},
         'clients': {'total': 0},
+      };
+    }
+  }
+
+  // Obtener métricas globales de todos los asesores
+  Future<Map<String, dynamic>> getGlobalPerformanceMetrics() async {
+    try {
+      // Obtener todos los empleados
+      final users = await getAllUsers();
+      final employees = users.where((user) => user.rol == UserRole.empleado).toList();
+      
+      // Variables para acumular totales
+      int totalReservations = 0;
+      int totalPaidReservations = 0;
+      int totalInProcessReservations = 0;
+      int totalPendingReservations = 0;
+      int totalCancelledReservations = 0;
+      
+      int totalQuotes = 0;
+      int totalPaidQuotes = 0;
+      int totalPartialPaidQuotes = 0;
+      int totalPendingQuotes = 0;
+      
+      double totalRevenue = 0.0;
+      double totalCompletedSalesAmount = 0.0;
+      int totalClients = 0;
+      
+      // Obtener métricas de cada empleado y sumarlas
+      for (final employee in employees) {
+        final metrics = await getPerformanceMetrics(employee.idUsuario!);
+        
+        final sales = metrics['sales'] ?? {};
+        final reservations = metrics['reservations'] ?? {};
+        final quotes = metrics['quotes'] ?? {};
+        final clients = metrics['clients'] ?? {};
+        
+        totalReservations += (reservations['total'] ?? 0) as int;
+        totalPaidReservations += (reservations['paid'] ?? 0) as int;
+        totalInProcessReservations += (reservations['inProcess'] ?? 0) as int;
+        totalPendingReservations += (reservations['pending'] ?? 0) as int;
+        totalCancelledReservations += (reservations['cancelled'] ?? 0) as int;
+        
+        totalQuotes += (quotes['total'] ?? 0) as int;
+        totalPaidQuotes += (quotes['paid'] ?? 0) as int;
+        totalPartialPaidQuotes += (quotes['partialPaid'] ?? 0) as int;
+        totalPendingQuotes += (quotes['pending'] ?? 0) as int;
+        
+        totalRevenue += (sales['totalRevenue'] ?? 0.0) as double;
+        totalCompletedSalesAmount += (sales['completedSalesAmount'] ?? 0.0) as double;
+        totalClients += (clients['total'] ?? 0) as int;
+      }
+      
+      // Calcular ventas totales
+      final totalSalesCompleted = totalPaidReservations + totalPaidQuotes;
+      final totalSalesInProcess = totalInProcessReservations + totalPartialPaidQuotes;
+      final totalSales = totalSalesCompleted + totalSalesInProcess;
+      
+      return {
+        'sales': {
+          'total': totalSales,
+          'completed': totalSalesCompleted,
+          'inProcess': totalSalesInProcess,
+          'totalRevenue': totalRevenue,
+          'completedSalesAmount': totalCompletedSalesAmount,
+          'averageSale': totalSalesCompleted > 0 
+              ? totalCompletedSalesAmount / totalSalesCompleted 
+              : 0.0,
+        },
+        'reservations': {
+          'total': totalReservations,
+          'paid': totalPaidReservations,
+          'inProcess': totalInProcessReservations,
+          'pending': totalPendingReservations,
+          'cancelled': totalCancelledReservations,
+        },
+        'quotes': {
+          'total': totalQuotes,
+          'paid': totalPaidQuotes,
+          'partialPaid': totalPartialPaidQuotes,
+          'pending': totalPendingQuotes,
+        },
+        'clients': {
+          'total': totalClients,
+        },
+        'employees': {
+          'total': employees.length,
+        },
+        'lastUpdated': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      debugPrint('❌ Error obteniendo métricas globales: $e');
+      return {
+        'sales': {'total': 0, 'completed': 0, 'inProcess': 0, 'totalRevenue': 0.0, 'completedSalesAmount': 0.0, 'averageSale': 0.0},
+        'reservations': {'total': 0, 'paid': 0, 'inProcess': 0, 'pending': 0, 'cancelled': 0},
+        'quotes': {'total': 0, 'paid': 0, 'partialPaid': 0, 'pending': 0},
+        'clients': {'total': 0},
+        'employees': {'total': 0},
       };
     }
   }
