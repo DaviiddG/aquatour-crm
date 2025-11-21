@@ -337,11 +337,18 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
       if (mounted) {
         Navigator.of(context).pop();
 
+        // Extraer mensaje de error limpio
+        String errorMessage = e.toString();
+        if (errorMessage.contains('Exception:')) {
+          errorMessage = errorMessage.replaceFirst('Exception:', '').trim();
+        }
+
         // Mostrar mensaje de error más específico
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al guardar: ${e.toString()}'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }

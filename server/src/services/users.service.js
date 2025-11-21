@@ -1,6 +1,6 @@
 import { query, getConnection } from '../config/db.js';
 import { hashPassword } from './password.service.js';
-import { validateEmailUnique, validatePhoneUnique } from './email-validation.service.js';
+import { validateEmailUnique, validatePhoneUnique, validateDocumentUnique } from './email-validation.service.js';
 
 const roleDbToApp = {
   Superadministrador: 'superadministrador',
@@ -192,13 +192,8 @@ const mapAppUserToDbFields = async (userData) => {
 };
 
 export const createUser = async (userData) => {
-  // Validar documento duplicado
-  const userWithDoc = await findByDocument(userData.num_documento);
-  if (userWithDoc) {
-    const error = new Error('El número de documento ya está registrado en el sistema');
-    error.status = 409;
-    throw error;
-  }
+  // Validar documento duplicado globalmente
+  await validateDocumentUnique(userData.num_documento, { excludeTable: 'Usuario' });
 
   // Validar email duplicado globalmente
   await validateEmailUnique(userData.email, { excludeTable: 'Usuario' });
@@ -260,14 +255,12 @@ export const updateUser = async (idUsuario, userData) => {
   const existingUser = await findUserById(idUsuario);
   if (!existingUser) return null;
 
-  // Validar documento duplicado
+  // Validar documento duplicado globalmente
   if (userData.num_documento) {
-    const userWithDoc = await findByDocument(userData.num_documento, idUsuario);
-    if (userWithDoc) {
-      const error = new Error('El número de documento ya está registrado en el sistema');
-      error.status = 409;
-      throw error;
-    }
+    await validateDocumentUnique(userData.num_documento, { 
+      excludeTable: 'Usuario', 
+      excludeId: idUsuario 
+    });
   }
 
   // Validar email duplicado globalmente

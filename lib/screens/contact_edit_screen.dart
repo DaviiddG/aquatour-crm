@@ -91,8 +91,19 @@ class _ContactEditScreenState extends State<ContactEditScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
+        
+        // Extraer mensaje de error limpio
+        String errorMessage = e.toString();
+        if (errorMessage.contains('Exception:')) {
+          errorMessage = errorMessage.replaceFirst('Exception:', '').trim();
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }

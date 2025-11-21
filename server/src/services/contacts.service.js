@@ -1,4 +1,5 @@
 import { query } from '../config/db.js';
+import { validateEmailUnique, validatePhoneUnique } from './email-validation.service.js';
 
 const baseSelect = `
   SELECT
@@ -48,6 +49,15 @@ export const createContact = async (payload) => {
   const normalized = normalizePayload(payload);
   validateContactPayload(normalized);
   const { nombre, email, telefono, empresa } = normalized;
+
+  // Validar email duplicado globalmente
+  await validateEmailUnique(email, { excludeTable: 'Contacto' });
+
+  // Validar teléfono duplicado globalmente
+  if (telefono) {
+    await validatePhoneUnique(telefono, { excludeTable: 'Contacto' });
+  }
+
   const [result] = await query(
     `INSERT INTO Contacto (nombre, email, telefono, empresa)
      VALUES (?, ?, ?, ?)` ,
@@ -61,6 +71,23 @@ export const updateContact = async (idContacto, payload) => {
   const normalized = normalizePayload(payload);
   validateContactPayload(normalized);
   const { nombre, email, telefono, empresa } = normalized;
+
+  // Validar email duplicado globalmente
+  if (email) {
+    await validateEmailUnique(email, { 
+      excludeTable: 'Contacto', 
+      excludeId: idContacto 
+    });
+  }
+
+  // Validar teléfono duplicado globalmente
+  if (telefono) {
+    await validatePhoneUnique(telefono, { 
+      excludeTable: 'Contacto', 
+      excludeId: idContacto 
+    });
+  }
+
   const [result] = await query(
     `UPDATE Contacto
      SET nombre = ?, email = ?, telefono = ?, empresa = ?

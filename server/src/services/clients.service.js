@@ -1,5 +1,5 @@
 import { query, getConnection } from '../config/db.js';
-import { validateEmailUnique, validatePhoneUnique } from './email-validation.service.js';
+import { validateEmailUnique, validatePhoneUnique, validateDocumentUnique } from './email-validation.service.js';
 
 const baseSelect = `
   SELECT
@@ -107,6 +107,11 @@ export const findClientByEmail = async (email, excludeId) => {
 };
 
 export const createClient = async (clientData) => {
+  // Validar documento duplicado globalmente
+  if (clientData.documento) {
+    await validateDocumentUnique(clientData.documento, { excludeTable: 'Cliente' });
+  }
+
   // Validar email duplicado globalmente
   await validateEmailUnique(clientData.email, { excludeTable: 'Cliente' });
 
@@ -195,6 +200,14 @@ export const createClient = async (clientData) => {
 export const updateClient = async (idCliente, clientData) => {
   const existingClient = await findClientById(idCliente);
   if (!existingClient) return null;
+
+  // Validar documento duplicado globalmente
+  if (clientData.documento) {
+    await validateDocumentUnique(clientData.documento, { 
+      excludeTable: 'Cliente', 
+      excludeId: idCliente 
+    });
+  }
 
   // Validar email duplicado globalmente
   if (clientData.email) {
