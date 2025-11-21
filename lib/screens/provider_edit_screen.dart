@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/provider.dart';
 import '../services/storage_service.dart';
@@ -199,6 +200,9 @@ class _ProviderEditScreenState extends State<ProviderEditScreen> {
                 TextFormField(
                   controller: _telefonoController,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
                   decoration: InputDecoration(
                     labelText: 'Teléfono *',
                     labelStyle: GoogleFonts.montserrat(fontSize: 13),

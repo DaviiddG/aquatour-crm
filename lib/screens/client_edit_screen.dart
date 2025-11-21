@@ -397,6 +397,7 @@ class _ClientEditScreenState extends State<ClientEditScreen> {
                 label: 'Teléfono',
                 controller: _telefonoController,
                 keyboardType: TextInputType.phone,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               const SizedBox(height: 12),
               _buildTextField(

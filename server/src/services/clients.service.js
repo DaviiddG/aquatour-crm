@@ -259,6 +259,35 @@ export const deleteClient = async (idCliente) => {
   const connection = await getConnection();
 
   try {
+    // Verificar si tiene cotizaciones asociadas
+    const [cotizaciones] = await connection.execute(
+      `SELECT COUNT(*) as count FROM Cotizaciones WHERE id_cliente = ?`,
+      [idCliente]
+    );
+
+    if (cotizaciones[0].count > 0) {
+      const error = new Error(
+        `No se puede eliminar el cliente porque tiene ${cotizaciones[0].count} cotización(es) asociada(s). Primero debe eliminar o reasignar las cotizaciones.`
+      );
+      error.status = 409;
+      throw error;
+    }
+
+    // Verificar si tiene reservas asociadas
+    const [reservas] = await connection.execute(
+      `SELECT COUNT(*) as count FROM Reserva WHERE id_cliente = ?`,
+      [idCliente]
+    );
+
+    if (reservas[0].count > 0) {
+      const error = new Error(
+        `No se puede eliminar el cliente porque tiene ${reservas[0].count} reserva(s) asociada(s). Primero debe eliminar o reasignar las reservas.`
+      );
+      error.status = 409;
+      throw error;
+    }
+
+    // Si no tiene relaciones, proceder con la eliminación
     const [result] = await connection.execute(
       `DELETE FROM Cliente WHERE id_cliente = ?`,
       [idCliente]
