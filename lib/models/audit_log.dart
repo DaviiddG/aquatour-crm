@@ -117,7 +117,7 @@ class AuditLog {
       'id_usuario': idUsuario,
       'nombre_usuario': nombreUsuario,
       'rol_usuario': rolUsuario,
-      'accion': accion.name,
+      'accion': accion.displayName,
       'categoria': categoria.name,
       'entidad': entidad,
       'id_entidad': idEntidad,

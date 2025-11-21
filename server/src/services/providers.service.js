@@ -1,4 +1,5 @@
 import { query } from '../config/db.js';
+import { validateEmailUnique } from './email-validation.service.js';
 
 const baseSelect = `
   SELECT
@@ -22,6 +23,24 @@ export const findProviderById = async (idProveedor) => {
   return rows[0] ?? null;
 };
 
+export const findProviderByEmail = async (correo, excludeId) => {
+  const params = [correo];
+  let whereClause = 'p.correo = ?';
+
+  if (excludeId) {
+    whereClause += ' AND p.id_proveedor <> ?';
+    params.push(excludeId);
+  }
+
+  const [rows] = await query(
+    `${baseSelect}
+     WHERE ${whereClause}
+     LIMIT 1`,
+    params
+  );
+  return rows[0] ?? null;
+};
+
 export const createProvider = async (payload) => {
   console.log('📦 Payload de proveedor recibido:', JSON.stringify(payload, null, 2));
   
@@ -36,6 +55,9 @@ export const createProvider = async (payload) => {
     error.status = 400;
     throw error;
   }
+
+  // Validar email duplicado globalmente
+  await validateEmailUnique(correo, { excludeTable: 'Proveedor' });
 
   const [result] = await query(
     `INSERT INTO Proveedores (nombre, tipo_proveedor, telefono, correo, estado)
@@ -59,6 +81,12 @@ export const updateProvider = async (idProveedor, payload) => {
     error.status = 400;
     throw error;
   }
+
+  // Validar email duplicado globalmente
+  await validateEmailUnique(correo, { 
+    excludeTable: 'Proveedor', 
+    excludeId: idProveedor 
+  });
 
   const [result] = await query(
     `UPDATE Proveedores

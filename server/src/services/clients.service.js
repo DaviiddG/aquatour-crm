@@ -1,4 +1,5 @@
 import { query, getConnection } from '../config/db.js';
+import { validateEmailUnique } from './email-validation.service.js';
 
 const baseSelect = `
   SELECT
@@ -87,7 +88,28 @@ export const findClientsByUser = async (idUsuario) => {
   return rows.map(mapDbClient);
 };
 
+export const findClientByEmail = async (email, excludeId) => {
+  const params = [email];
+  let whereClause = 'c.email = ?';
+
+  if (excludeId) {
+    whereClause += ' AND c.id_cliente <> ?';
+    params.push(excludeId);
+  }
+
+  const [rows] = await query(
+    `${baseSelect}
+     WHERE ${whereClause}
+     LIMIT 1`,
+    params
+  );
+  return mapDbClient(rows[0]);
+};
+
 export const createClient = async (clientData) => {
+  // Validar email duplicado globalmente
+  await validateEmailUnique(clientData.email, { excludeTable: 'Cliente' });
+
   const connection = await getConnection();
 
   try {
@@ -168,6 +190,14 @@ export const createClient = async (clientData) => {
 export const updateClient = async (idCliente, clientData) => {
   const existingClient = await findClientById(idCliente);
   if (!existingClient) return null;
+
+  // Validar email duplicado globalmente
+  if (clientData.email) {
+    await validateEmailUnique(clientData.email, { 
+      excludeTable: 'Cliente', 
+      excludeId: idCliente 
+    });
+  }
 
   const connection = await getConnection();
 

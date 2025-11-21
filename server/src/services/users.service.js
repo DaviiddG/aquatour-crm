@@ -1,5 +1,6 @@
 import { query, getConnection } from '../config/db.js';
 import { hashPassword } from './password.service.js';
+import { validateEmailUnique } from './email-validation.service.js';
 
 const roleDbToApp = {
   Superadministrador: 'superadministrador',
@@ -199,13 +200,8 @@ export const createUser = async (userData) => {
     throw error;
   }
 
-  // Validar email duplicado
-  const userWithEmail = await findByEmail(userData.email);
-  if (userWithEmail) {
-    const error = new Error('El email ya está registrado en el sistema');
-    error.status = 409;
-    throw error;
-  }
+  // Validar email duplicado globalmente
+  await validateEmailUnique(userData.email, { excludeTable: 'Usuario' });
 
   // Validar teléfono duplicado
   if (userData.telefono) {
@@ -282,14 +278,12 @@ export const updateUser = async (idUsuario, userData) => {
     }
   }
 
-  // Validar email duplicado
+  // Validar email duplicado globalmente
   if (userData.email) {
-    const userWithEmail = await findByEmail(userData.email, idUsuario);
-    if (userWithEmail) {
-      const error = new Error('El email ya está registrado en el sistema');
-      error.status = 409;
-      throw error;
-    }
+    await validateEmailUnique(userData.email, { 
+      excludeTable: 'Usuario', 
+      excludeId: idUsuario 
+    });
   }
 
   // Validar teléfono duplicado
