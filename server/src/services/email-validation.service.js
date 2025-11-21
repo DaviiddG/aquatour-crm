@@ -107,3 +107,118 @@ export const validateEmailUnique = async (email, options = {}) => {
     throw error;
   }
 };
+
+/**
+ * Validar si un teléfono ya existe en el sistema (Usuario, Cliente o Proveedor)
+ * @param {string} telefono - Teléfono a validar
+ * @param {Object} options - Opciones de validación
+ * @param {string} options.excludeTable - Tabla a excluir de la búsqueda ('Usuario', 'Cliente', 'Proveedor')
+ * @param {number} options.excludeId - ID a excluir de la búsqueda
+ * @returns {Promise<Object|null>} Objeto con información de dónde existe el teléfono, o null si no existe
+ */
+export const checkPhoneExists = async (telefono, options = {}) => {
+  const { excludeTable, excludeId } = options;
+
+  // Limpiar el teléfono (solo dígitos)
+  const cleanPhone = String(telefono).replace(/[^0-9]/g, '');
+  
+  if (!cleanPhone) {
+    return null;
+  }
+
+  // Buscar en Usuario
+  let whereClause = 'telefono = ?';
+  let params = [cleanPhone];
+  
+  // Si estamos editando un usuario, excluir su propio ID
+  if (excludeTable === 'Usuario' && excludeId) {
+    whereClause += ' AND id_usuario <> ?';
+    params.push(excludeId);
+  }
+
+  const [usuarios] = await query(
+    `SELECT id_usuario, nombre, apellido, telefono FROM Usuario WHERE ${whereClause} LIMIT 1`,
+    params
+  );
+
+  if (usuarios.length > 0) {
+    return {
+      exists: true,
+      table: 'Usuario',
+      entity: 'usuario',
+      displayName: 'Usuario',
+      data: usuarios[0]
+    };
+  }
+
+  // Buscar en Cliente
+  whereClause = 'telefono = ?';
+  params = [cleanPhone];
+  
+  // Si estamos editando un cliente, excluir su propio ID
+  if (excludeTable === 'Cliente' && excludeId) {
+    whereClause += ' AND id_cliente <> ?';
+    params.push(excludeId);
+  }
+
+  const [clientes] = await query(
+    `SELECT id_cliente, nombres, apellidos, telefono FROM Cliente WHERE ${whereClause} LIMIT 1`,
+    params
+  );
+
+  if (clientes.length > 0) {
+    return {
+      exists: true,
+      table: 'Cliente',
+      entity: 'cliente',
+      displayName: 'Cliente',
+      data: clientes[0]
+    };
+  }
+
+  // Buscar en Proveedor
+  whereClause = 'telefono = ?';
+  params = [cleanPhone];
+  
+  // Si estamos editando un proveedor, excluir su propio ID
+  if (excludeTable === 'Proveedor' && excludeId) {
+    whereClause += ' AND id_proveedor <> ?';
+    params.push(excludeId);
+  }
+
+  const [proveedores] = await query(
+    `SELECT id_proveedor, nombre, telefono FROM Proveedores WHERE ${whereClause} LIMIT 1`,
+    params
+  );
+
+  if (proveedores.length > 0) {
+    return {
+      exists: true,
+      table: 'Proveedor',
+      entity: 'proveedor',
+      displayName: 'Proveedor',
+      data: proveedores[0]
+    };
+  }
+
+  return null;
+};
+
+/**
+ * Validar teléfono y lanzar error si ya existe
+ * @param {string} telefono - Teléfono a validar
+ * @param {Object} options - Opciones de validación
+ * @throws {Error} Si el teléfono ya existe
+ */
+export const validatePhoneUnique = async (telefono, options = {}) => {
+  const result = await checkPhoneExists(telefono, options);
+  
+  if (result) {
+    const error = new Error(
+      `El número de teléfono ya está registrado en el sistema como ${result.displayName}`
+    );
+    error.status = 409;
+    error.conflict = result;
+    throw error;
+  }
+};

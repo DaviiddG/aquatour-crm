@@ -1,5 +1,5 @@
 import { query, getConnection } from '../config/db.js';
-import { validateEmailUnique } from './email-validation.service.js';
+import { validateEmailUnique, validatePhoneUnique } from './email-validation.service.js';
 
 const baseSelect = `
   SELECT
@@ -110,6 +110,11 @@ export const createClient = async (clientData) => {
   // Validar email duplicado globalmente
   await validateEmailUnique(clientData.email, { excludeTable: 'Cliente' });
 
+  // Validar teléfono duplicado globalmente
+  if (clientData.telefono) {
+    await validatePhoneUnique(clientData.telefono, { excludeTable: 'Cliente' });
+  }
+
   const connection = await getConnection();
 
   try {
@@ -194,6 +199,14 @@ export const updateClient = async (idCliente, clientData) => {
   // Validar email duplicado globalmente
   if (clientData.email) {
     await validateEmailUnique(clientData.email, { 
+      excludeTable: 'Cliente', 
+      excludeId: idCliente 
+    });
+  }
+
+  // Validar teléfono duplicado globalmente
+  if (clientData.telefono) {
+    await validatePhoneUnique(clientData.telefono, { 
       excludeTable: 'Cliente', 
       excludeId: idCliente 
     });

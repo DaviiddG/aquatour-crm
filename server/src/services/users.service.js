@@ -1,6 +1,6 @@
 import { query, getConnection } from '../config/db.js';
 import { hashPassword } from './password.service.js';
-import { validateEmailUnique } from './email-validation.service.js';
+import { validateEmailUnique, validatePhoneUnique } from './email-validation.service.js';
 
 const roleDbToApp = {
   Superadministrador: 'superadministrador',
@@ -203,17 +203,9 @@ export const createUser = async (userData) => {
   // Validar email duplicado globalmente
   await validateEmailUnique(userData.email, { excludeTable: 'Usuario' });
 
-  // Validar teléfono duplicado
+  // Validar teléfono duplicado globalmente
   if (userData.telefono) {
-    const cleanPhone = String(userData.telefono).replace(/[^0-9]/g, '');
-    if (cleanPhone) {
-      const userWithPhone = await findByPhone(cleanPhone);
-      if (userWithPhone) {
-        const error = new Error('El número de teléfono ya está registrado en el sistema');
-        error.status = 409;
-        throw error;
-      }
-    }
+    await validatePhoneUnique(userData.telefono, { excludeTable: 'Usuario' });
   }
 
   const connection = await getConnection();
@@ -286,17 +278,12 @@ export const updateUser = async (idUsuario, userData) => {
     });
   }
 
-  // Validar teléfono duplicado
+  // Validar teléfono duplicado globalmente
   if (userData.telefono) {
-    const cleanPhone = String(userData.telefono).replace(/[^0-9]/g, '');
-    if (cleanPhone) {
-      const userWithPhone = await findByPhone(cleanPhone, idUsuario);
-      if (userWithPhone) {
-        const error = new Error('El número de teléfono ya está registrado en el sistema');
-        error.status = 409;
-        throw error;
-      }
-    }
+    await validatePhoneUnique(userData.telefono, { 
+      excludeTable: 'Usuario', 
+      excludeId: idUsuario 
+    });
   }
 
   const connection = await getConnection();

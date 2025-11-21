@@ -1,5 +1,5 @@
 import { query } from '../config/db.js';
-import { validateEmailUnique } from './email-validation.service.js';
+import { validateEmailUnique, validatePhoneUnique } from './email-validation.service.js';
 
 const baseSelect = `
   SELECT
@@ -59,6 +59,11 @@ export const createProvider = async (payload) => {
   // Validar email duplicado globalmente
   await validateEmailUnique(correo, { excludeTable: 'Proveedor' });
 
+  // Validar teléfono duplicado globalmente
+  if (telefono) {
+    await validatePhoneUnique(telefono, { excludeTable: 'Proveedor' });
+  }
+
   const [result] = await query(
     `INSERT INTO Proveedores (nombre, tipo_proveedor, telefono, correo, estado)
      VALUES (?, ?, ?, ?, ?)`,
@@ -87,6 +92,14 @@ export const updateProvider = async (idProveedor, payload) => {
     excludeTable: 'Proveedor', 
     excludeId: idProveedor 
   });
+
+  // Validar teléfono duplicado globalmente
+  if (telefono) {
+    await validatePhoneUnique(telefono, { 
+      excludeTable: 'Proveedor', 
+      excludeId: idProveedor 
+    });
+  }
 
   const [result] = await query(
     `UPDATE Proveedores
